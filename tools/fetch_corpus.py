@@ -1,0 +1,1329 @@
+#!/usr/bin/env python3
+"""Acquire public aerospace documents and build verified SOURCE-REGISTERs.
+
+Follows HangarIndex multi-agent charter:
+- Downloads to new subfolders under corpus/ (never alters corpus/FAA-Public/ baseline).
+- Employs polite download rates, custom User-Agent, and sha256 verification.
+- Enforces fail-loud validation: verifies %PDF- header on PDFs, rejects bot-block
+  ('Request Access') pages and short stubs (<2000 chars) on HTML.
+- Generates markdown SOURCE-REGISTER.md with official URLs, acquisition dates,
+  licenses, SHA-256 hashes, redistribute flag (yes|link-only), and authority/educational/research/supplier taxonomy.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import NamedTuple
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+CORPUS_DIR = BASE_DIR / "corpus"
+
+USER_AGENT = "HangarIndex-Research/1.0 (Aerospace Maintenance POC; project-lead@hangarindex.internal)"
+
+
+class DocumentTarget(NamedTuple):
+    subfolder: str
+    filename: str
+    url: str
+    tag: str  # 'authority' | 'educational' | 'research' | 'supplier'
+    authority_jurisdiction: str
+    license_status: str
+    redistribute: str  # 'yes' | 'link-only'
+    title: str
+    scope_notes: str
+
+
+TARGETS: list[DocumentTarget] = [
+    # =========================================================================
+    # Workstream 1: Regulatory Expansion (corpus/Regulations/)
+    # =========================================================================
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_14_CFR_Part_43_Maintenance.pdf",
+        url="https://www.govinfo.gov/content/pkg/CFR-2024-title14-vol1/pdf/CFR-2024-title14-vol1-part43.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA / US GPO (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="14 CFR Part 43: Maintenance, Preventive Maintenance, Rebuilding, and Alteration (Official GPO Annual Edition)",
+        scope_notes="Official US Government Publishing Office text of 14 CFR Part 43. Authoritative standard for maintenance rules, authorized personnel, approval for return to service, and major alteration recording (Appendix A/B).",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_14_CFR_Part_21_Certification.pdf",
+        url="https://www.govinfo.gov/content/pkg/CFR-2024-title14-vol1/pdf/CFR-2024-title14-vol1-part21.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA / US GPO (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="14 CFR Part 21: Certification Procedures for Products and Articles (Official GPO Annual Edition)",
+        scope_notes="Official GPO text covering airworthiness certificates, PMA (§ 21.303), and TSO authorizations. Essential regulatory standard for replacement parts eligibility and DER engineering approval paths.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_14_CFR_Part_145_Repair_Stations.pdf",
+        url="https://www.govinfo.gov/content/pkg/CFR-2024-title14-vol3/pdf/CFR-2024-title14-vol3-part145.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA / US GPO (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="14 CFR Part 145: Repair Stations (Official GPO Annual Edition)",
+        scope_notes="Official GPO text establishing certificated repair station requirements: housing, facilities, personnel, ratings, quality control system, manual requirements, and capability list procedures.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_43.13-2C_Aircraft_Alterations.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_43.13-2C.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 43.13-2C: Acceptable Methods, Techniques, and Practices - Aircraft Alterations",
+        scope_notes="Current active edition replacing AC 43.13-2B. Authoritative advisory guidance on structural alterations, antenna installations, and electrical equipment additions.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_21-29D_Suspected_Unapproved_Parts.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_21-29D.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 21-29D: Detecting and Reporting Suspected Unapproved Parts (SUP)",
+        scope_notes="Authoritative guidance for repair stations, operators, and distributors on receiving inspections, counterfeit part screening, and reporting unapproved aeronautical parts.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="UK_CAA_CAP_562_Civil_Aircraft_Airworthiness_Information_and_Procedures.pdf",
+        url="https://www.caa.co.uk/publication/download/12181",
+        tag="authority",
+        authority_jurisdiction="UK CAA (United Kingdom)",
+        license_status="Open Government Licence v3.0 / Crown Copyright",
+        redistribute="yes",
+        title="UK CAA CAP 562: Civil Aircraft Airworthiness Information and Procedures (CAAIP)",
+        scope_notes="Comprehensive UK civil airworthiness guidance covering overhaul, repair, maintenance, NDT, and workshop standard practices under UK domestic aviation law post-Brexit.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="UK_CAA_CAP_747_Mandatory_Requirements_for_Airworthiness.pdf",
+        url="https://www.caa.co.uk/publication/download/16190",
+        tag="authority",
+        authority_jurisdiction="UK CAA (United Kingdom)",
+        license_status="Open Government Licence v3.0 / Crown Copyright",
+        redistribute="yes",
+        title="UK CAA CAP 747: Mandatory Requirements for Airworthiness",
+        scope_notes="Current mandatory airworthiness directives and continuing airworthiness requirements issued by the UK CAA for UK-registered aircraft and maintenance organizations.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="UK_Regulation_EU_1321-2014_Retained_Domestic_Law.html",
+        url="https://www.legislation.gov.uk/eur/2014/1321/contents",
+        tag="authority",
+        authority_jurisdiction="UK Government / UK CAA (United Kingdom)",
+        license_status="Open Government Licence v3.0 / Crown Copyright",
+        redistribute="yes",
+        title="Regulation (EU) No 1321/2014 on Continuing Airworthiness (as retained in UK domestic law)",
+        scope_notes="UK statutory instrument retaining EU continuing airworthiness rules (Annex I Part-M, Annex II Part-145, Annex IV Part-66) in UK law with UK CAA as competent authority.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="CAAC_CCAR-145R4_Maintenance_Organization_Rules_English.pdf",
+        url="https://www.caac.gov.cn/English/Highlights/regulation/202507/P020250730334013345113.pdf",
+        tag="authority",
+        authority_jurisdiction="CAAC (China)",
+        license_status="Official CAAC Public Law",
+        redistribute="link-only",
+        title="CAAC CCAR-145R4: Civil Aviation Maintenance Organization Certification Rules (Official English Translation)",
+        scope_notes="Official full English regulation text for Revision 4 of CCAR-145. Governs domestic and foreign maintenance organization certification, ratings, personnel, and bilateral approval by China CAAC.",
+    ),
+    # Regulator Breadth Additions
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_43-210A_Approval_Major_Repairs_Alterations_Data.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_43-210A.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 43-210A: Standardized Procedures for Obtaining Approval of Data Used on Major Repairs and Alterations",
+        scope_notes="Procedures for developing and submitting technical data for FAA Form 337 major repairs and alterations, DER Form 8110-3 approvals, and field approvals by FAA Aviation Safety Inspectors.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_21-40A_STC_Application_Guide.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_21-40A.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 21-40A: Application Guide for Obtaining a Supplemental Type Certificate",
+        scope_notes="Comprehensive guidance for developing and certifying Supplemental Type Certificates (STC) under 14 CFR Part 21, compliance checklists, conformity inspections, and engineering test witnessing.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_21-43A_Production_Under_Part_21.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_21-43A.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 21-43A: Production Under 14 CFR Part 21, Subparts F, G, K, and O",
+        scope_notes="Advisory material for manufacturers holding Production Certificates (PC), PMA, or TSO authorizations, quality system establishment, supplier control, and nonconforming article disposition.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_21-45_Commercial_Parts_Approval.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_21-45.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 21-45: Commercial Parts Identification and Qualification",
+        scope_notes="Procedures for type certificate and PMA holders to designate commercial off-the-shelf (COTS) parts under 14 CFR § 21.1(b)(3) and § 21.9(a)(4), avoiding counterfeit parts and ensuring traceability.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_20-115D_Airborne_Software_DO-178C.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_20-115D.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 20-115D: Airborne Software Development Assurance Using EUROCAE ED-12C and RTCA DO-178C",
+        scope_notes="Acceptable means of compliance for airborne software in type certification, TSO, and major alterations; software lifecycle data, verification objectives, and tool qualification.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_20-152A_Airborne_Electronic_Hardware_DO-254.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_20-152A.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 20-152A: Development Assurance for Airborne Electronic Hardware (DO-254)",
+        scope_notes="Guidance for airborne electronic hardware (ASIC, FPGA, PLD) development assurance complying with RTCA DO-254 / EUROCAE ED-80 for Design Assurance Levels (DAL) A through D.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_20-136B_Aircraft_Electrical_Lightning_Protection.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_20-136B.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 20-136B: Aircraft Electrical and Electronic System Lightning Protection",
+        scope_notes="Certification guidance for aircraft electrical and electronic systems subjected to indirect effects of lightning (DO-160 Section 22), transient protection, and shielding verification.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_43-18_Fabrication_of_Parts_by_Maintenance_Personnel.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_43-18.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 43-18: Fabrication of Aircraft Parts by Maintenance Personnel",
+        scope_notes="Critical distinction between manufacturing parts for sale (requiring PMA) vs. fabricating parts to consume in a specific repair or alteration under 14 CFR Part 43.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_145-11A_Repair_Station_Ratings_Guide.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_145-11A.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 145-11A: Repair Station Rating Guide",
+        scope_notes="Advisory guidance on establishing ratings and limitations under 14 CFR Part 145: airframe, powerplant, propeller, radio, instrument, and accessory class and limited ratings.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_43-209A_Inspection_Procedures_Alterations_Repairs.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_43-209A.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 43-209A: Recommended Inspection Procedures for Alterations and Repairs",
+        scope_notes="Recommended procedures for inspecting repairs and alterations on aircraft and rotable components, conformity checks, electrical bonding verification, and documentation.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_20-62E_Eligibility_Aeronautical_Parts.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_20-62E_CHG_1.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 20-62E: Eligibility, Quality, and Identification of Aeronautical Replacement Parts",
+        scope_notes="Core standard for determining replacement part eligibility, documentation requirements (FAA Form 8130-3, 8110-3), standard parts criteria, and preventing unapproved parts installation.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_145-10_Repair_Station_Training_Program.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_145-10.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 145-10: Repair Station Training Program",
+        scope_notes="Detailed guidance for certificated repair stations to develop, submit, and administer technician training programs under 14 CFR § 145.163, initial and recurrent training, and records retention.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="FAA_AC_43-9C_Maintenance_Records.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_43-9C_CHG_2.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 43-9C: Maintenance Records",
+        scope_notes="Advisory guidance on maintenance recordkeeping complying with 14 CFR §§ 43.9 and 43.11, logbook entries, total time-in-service tracking, and major repair Form 337 recording.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="EASA_Part-145_Continuing_Airworthiness_Regulation_EU_1321_2014.html",
+        url="https://www.easa.europa.eu/en/document-library/easy-access-rules/online-publications/easy-access-rules-continuing-airworthiness",
+        tag="authority",
+        authority_jurisdiction="EASA (European Union)",
+        license_status="Official EU Regulation / EASA Legal Notice",
+        redistribute="link-only",
+        title="EASA Easy Access Rules for Continuing Airworthiness (Regulation (EU) No 1321/2014) - Part-145, AMC & GM",
+        scope_notes="Consolidated European Union continuing airworthiness regulations: Annex I (Part-M), Annex II (Part-145), Annex Vb (Part-ML), and associated Acceptable Means of Compliance (AMC) and Guidance Material (GM).",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="EASA_CS-25_Large_Aeroplanes_Certification_Specifications.html",
+        url="https://www.easa.europa.eu/en/document-library/easy-access-rules/online-publications/easy-access-rules-large-aeroplanes-cs-25",
+        tag="authority",
+        authority_jurisdiction="EASA (European Union)",
+        license_status="Official EASA Certification Specification",
+        redistribute="link-only",
+        title="EASA Easy Access Rules for Large Aeroplanes (CS-25 Amendment 27)",
+        scope_notes="EASA airworthiness certification specifications for large commercial jet transports: structural integrity, damage tolerance (CS 25.571), EWIS (CS 25.1701), and powerplant installation requirements.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="EASA_Part-21_Initial_Airworthiness_Regulation_EU_748_2012.html",
+        url="https://www.easa.europa.eu/en/document-library/easy-access-rules/easy-access-rules-initial-airworthiness-and-environmental",
+        tag="authority",
+        authority_jurisdiction="EASA (European Union)",
+        license_status="Official EU Regulation / EASA Legal Notice",
+        redistribute="link-only",
+        title="EASA Easy Access Rules for Initial Airworthiness (Regulation (EU) No 748/2012) - Part 21",
+        scope_notes="Consolidated rules for certification of aircraft and related products, parts and appliances, Design Organisation Approvals (DOA - Subpart J), and Production Organisation Approvals (POA - Subpart G).",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="TCCA_CAR_Part_V_Subpart_571_Maintenance.html",
+        url="https://laws-lois.justice.gc.ca/eng/regulations/SOR-96-433/section-571.01.html",
+        tag="authority",
+        authority_jurisdiction="Transport Canada (TCCA)",
+        license_status="Government of Canada / Crown Copyright",
+        redistribute="link-only",
+        title="Transport Canada CAR Part V, Subpart 571: Aircraft Maintenance",
+        scope_notes="Official Canadian Aviation Regulations governing maintenance performance rules, maintenance releases, life-limited parts installation, and major repair and alteration reporting.",
+    ),
+    DocumentTarget(
+        subfolder="Regulations",
+        filename="TCCA_CAR_Part_V_Subpart_573_Approved_Maintenance_Organizations.html",
+        url="https://laws-lois.justice.gc.ca/eng/regulations/SOR-96-433/section-573.01.html",
+        tag="authority",
+        authority_jurisdiction="Transport Canada (TCCA)",
+        license_status="Government of Canada / Crown Copyright",
+        redistribute="link-only",
+        title="Transport Canada CAR Part V, Subpart 573: Approved Maintenance Organizations (AMOs)",
+        scope_notes="Official Canadian rules governing AMO certification, scope of maintenance ratings, maintenance policy manual (MPM), technician qualifications, and quality assurance programs.",
+    ),
+
+    # =========================================================================
+    # Workstream 2: Repair Practice Expansion (corpus/Practice/)
+    # =========================================================================
+    DocumentTarget(
+        subfolder="Practice",
+        filename="FAA_AC_43-4B_Corrosion_Control_for_Aircraft.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_43-4B.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 43-4B: Corrosion Control for Aircraft",
+        scope_notes="Comprehensive guide for aircraft corrosion prevention, inspection, identification, and chemical/mechanical removal procedures across airframes, engines, and avionics.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="FAA_AC_120-94_Aircraft_EWIS_Maintenance_Program.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-94.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 120-94: Aircraft Electrical Wiring Interconnect Systems (EWIS) Maintenance Program",
+        scope_notes="Operational and repair station practices for wire harness inspection, cleaning, zonal inspection, and repair of wiring harnesses, clamps, connectors, and backshells.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="FAA_AC_25-26_EWIS_Instructions_Continued_Airworthiness.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_25-26.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 25-26: Development of Instructions for Continued Airworthiness for Electrical Wiring Interconnect Systems (EWIS)",
+        scope_notes="Technical standard defining required ICA maintenance and inspection tasks for transport aircraft wiring harnesses, connectors, terminations, and environmental protection.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="FAA_AC_20-30B_Aircraft_Position_and_Anticollision_Light_Installations.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_20-30B.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 20-30B: Aircraft Position Light and Anticollision Light Installations",
+        scope_notes="Technical guidance on exterior aircraft lighting systems, electrical loads, alignment, and installation integrity for landing, taxi, and position lights.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="FAA_AC_33.28-1_Engine_Electrical_and_Electronic_Control_Systems.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_33.28-1.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 33.28-1: Guidance Material for 14 CFR 33.28, Electrical and Electronic Engine Control Systems",
+        scope_notes="Airworthiness standards for aircraft turbine engine electrical systems, harness shielding, sensor wiring interfaces, and ignition exciter control circuits.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="FAA_Order_8110.42D_PMA_Procedures.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Order/8110.42D.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA Order 8110.42D: Parts Manufacturer Approval Procedures",
+        scope_notes="Defines FAA evaluation, engineering test, and computation standards for approving PMA replacement parts, directly governing aftermarket companies like Jet Parts Engineering (JPE).",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="FAA_AC_20-53C_Fuel_Vapor_Ignition_Lightning_Protection.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_20-53C.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 20-53C: Protection of Aircraft Fuel Systems Against Fuel Vapor Ignition Due to Lightning",
+        scope_notes="Authoritative advisory guidance on electrical bonding, structural shielding, wire routing in fuel zones, and spark ignition prevention under lightning strikes.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="FAA_AC_21-16G_DO-160_Environmental_Testing_Procedures.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_21-16G.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 21-16G: RTCA Document DO-160 versions D, E, F, and G Environmental Conditions and Test Procedures",
+        scope_notes="FAA recognized environmental qualifications standard for airborne equipment, rotable accessories, and lighting units (temperature, vibration, moisture, and lightning transient tolerance).",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="FAA_AC_20-154_Tool_and_Equipment_Management_Calibration.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_20-154.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 20-154: Guide for Developing a Tool and Equipment Management Program",
+        scope_notes="Authoritative standard on tool calibration intervals, NIST traceability, crimp tool verification, torque wrench certification, and tool accountability under 14 CFR Part 43 and Part 145.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="FAA_AC_25.1309-1A_System_Safety_Analysis_and_Assessment.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_25.1309-1A.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 25.1309-1A: System Design and Analysis",
+        scope_notes="Transport aircraft system safety analysis standards, failure modes and effects analysis (FMEA), fault tree analysis, and redundancy requirements for critical rotable systems.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="NASA_Wire_Harness_Manufacture_Quality_Control_19720025556.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19720025556/downloads/19720025556.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Cable and Wire Harness Quality Control and Manufacturing Practices",
+        scope_notes="NASA workmanship and quality requirements for aircraft and spacecraft wiring harness layout, bundling, bend radiuses, crimping standards, and contact retention verification.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="NASA_Wire_Crimp_Connectors_Ultrasonic_Verification_20080013394.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20080013394/downloads/20080013394.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Ultrasonic Verification of Wire Crimp Connectors",
+        scope_notes="Non-destructive evaluation and ultrasonic inspection methodology for verifying wire crimp compaction, strand deformation, and void formation in electrical wire terminations.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="NASA_Spacecraft_Electrical_Connector_Selection_Processes_20130011503.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20130011503/downloads/20130011503.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Electrical Connector Selection, De-rating, and Application Guidelines",
+        scope_notes="Aerospace engineering guidelines on connector shell selection, pin plating, contact resistance, dielectric breakdown, hermetic sealing, and environmental potting.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="NASA_Wiring_Design_Considerations_and_Failure_Modes_20090016296.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20090016296/downloads/20090016296.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Aerospace Wiring Design Considerations and Field Failure Modes",
+        scope_notes="Detailed analysis of wiring degradation, wire chafing against airframe structures, wet and dry arc tracking, insulation hydrolysis, and harness clamp spacing.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="NASA_Eddy_Current_Flaw_Detection_Inspection_20200004015.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20200004015/downloads/20200004015.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Advanced Eddy Current Flaw Detection and Defect Characterization",
+        scope_notes="Electromagnetic NDT principles, coil probe designs, standard depth of penetration calculations, and surface/subsurface crack detection in conductive aerospace alloys.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="NASA_Automated_Eddy_Current_Inspection_Hardware_20080014079.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20080014079/downloads/20080014079.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Automated Eddy Current Inspection System for Flight Hardware",
+        scope_notes="Automated scanner deployment, impedance plane analysis, calibration reference standards, and high-sensitivity fastener hole inspection procedures.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="NASA_Ultrasonic_Inspection_Fundamentals_20030005476.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20030005476/downloads/20030005476.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Ultrasonic Nondestructive Inspection Fundamentals",
+        scope_notes="Comprehensive ultrasonic testing reference: longitudinal and transverse waves, transducer selection, couplant requirements, attenuation, and flaw sizing calibration in metallic structures.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="NASA_Ultrasonic_Aluminum_Welds_Inspection_19680009156.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19680009156/downloads/19680009156.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Ultrasonic Inspection of Aluminum Alloy Welds",
+        scope_notes="NDT testing procedures for assessing fusion weld seams, incomplete penetration, porosity, and weld root cracking in high-strength aerospace aluminum alloys.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="NASA_Guided_Wave_Ultrasonic_Welding_Inspection_20260008279.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20260008279/downloads/InSitu_GWUT_Induction_Welding.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="Contractor / Co-Authored (Third-Party / Non-PD)",
+        redistribute="link-only",
+        title="In-Situ Guided Wave Ultrasonic Testing for Aerospace Induction Welding",
+        scope_notes="Advanced guided wave ultrasonic monitoring of aerospace joints during induction and thermal joining, analyzing wave mode propagation and joint bond consolidation.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="NASA_Inspection_Aging_Aircraft_Manufacturer_Perspective_19920020874.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19920020874/downloads/19920020874.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Nondestructive Inspection of Aging Aircraft: A Manufacturer's Perspective",
+        scope_notes="Original equipment manufacturer technical perspectives on NDI implementation, detection limits, human factors, and inspection reliability across airline and repair station depots.",
+    ),
+    DocumentTarget(
+        subfolder="Practice",
+        filename="NASA_Liquid_Penetrant_Sensitivity_Detection_Probability_20110007934.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20110007934/downloads/20110007934.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Effect of Liquid Penetrant Sensitivity on Probability of Detection (POD)",
+        scope_notes="Rigorous experimental evaluation of fluorescent penetrant sensitivity levels (Levels 1-4 per AMS 2644 / ASTM E1417), developer selection, washability, and background fluorescence impacts on crack detection.",
+    ),
+
+    # =========================================================================
+    # Workstream 3: Aerospace Materials & Metallurgy (corpus/Science/)
+    # =========================================================================
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Galvanic_Corrosion_Dissimilar_Alloys_Inconel_Steel_Aluminum_19840005195.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19840005195/downloads/19840005195.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Galvanic Coupling Between D6AC Steel, 6061-T6 Aluminum, Inconel 718 and Graphite-Epoxy: Corrosion Occurrence and Prevention",
+        scope_notes="Experimental investigation of galvanic cell potentials, area ratios, and barrier isolations between high-strength structural alloys, superalloys, and composite materials in aerospace environments.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Corrosion_Prevention_Gas_Turbines_19860012073.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19860012073/downloads/19860012073.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Corrosion and Corrosion Prevention in Gas Turbines",
+        scope_notes="In-depth analysis of hot corrosion, molten salt attack (Na2SO4), sulfidation, oxidation mechanisms, and protective aluminide/MCrAlY coatings on nickel/cobalt turbine engine components.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Laser_Beam_Welding_Ecosystem_Maturation_20250000018.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20250000018/downloads/AIAA-SciTech-ISW-ecosystem_2025-01-02.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="Copyright © AIAA (Third-Party / Non-PD)",
+        redistribute="link-only",
+        title="Establishing an In-Space Joining Ecosystem at NASA Marshall via Laser Beam Welding",
+        scope_notes="Technical paper evaluating laser beam welding process physics, thermal profiles, porosity suppression, microstructural evolution, and weld seam integrity in high-strength metallic alloys.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Corrosion_Management_and_Prevention_Overview_20140005434.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20140005434/downloads/20140005434.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Anticipating, Managing and Preventing Corrosion: NASA Perspective",
+        scope_notes="Systems engineering approach to atmospheric corrosion, pit initiation, corrosion fatigue, environmental degradation testing, and protective surface treatments across flight hardware.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Galvanic_Corrosion_Aluminum_Stainless_Inserts_19660010473.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19660010473/downloads/19660010473.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Galvanic Corrosion of Aluminum Assemblies by Stainless Steel Wire Inserts",
+        scope_notes="Empirical testing of galvanic acceleration and corrosion control at threaded insert interfaces (helicoil stainless inserts in aluminum structural components).",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Magnesium_Alloy_AZ31B_Corrosion_Protection_19980006782.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19980006782/downloads/19980006782.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Corrosion and Corrosion Protection of Magnesium Alloy AZ31B",
+        scope_notes="Chemical surface treatments (chromate conversion, anodizing), severe galvanic vulnerability, chemical stripping hazards, and flammability precautions for magnesium alloys in aerospace applications.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Laser_Pulse_Tailored_Welding_Inconel_718_19960011794.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19960011794/downloads/19960011794.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Pulse-Tailored Nd:YAG Laser Welding of Nickel-Base Superalloy Inconel 718",
+        scope_notes="Laser pulse temporal shaping, heat input optimization, beam parameters, and suppression of solidification microfissuring in Inconel 718 aerospace weldments.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Inconel_718_Weldment_Repeated_Repair_Effects_19810012642.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19810012642/downloads/19810012642.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Effects of Repeated Weld Repairs on Inconel 718 Structures",
+        scope_notes="Metallurgical assessment of multiple repair weld cycles, heat-affected zone (HAZ) grain growth, Laves phase segregation, and tensile/fatigue degradation in turbine engine alloy repairs.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Multiple_Repairs_Inconel_718_Mechanical_Properties_19920005162.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19920005162/downloads/19920005162.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Influence of Multiple Weld Repairs on Mechanical Properties of Inconel 718",
+        scope_notes="Stress rupture, high-cycle fatigue, and ductility tracking across repeated TIG and laser repair passes; establishes engineering criteria for maximum repair cycles.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Microfissuring_and_Liquation_Cracking_Inconel_718_19830021085.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19830021085/downloads/19830021085.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Microfissuring and Liquation Cracking in Welded Inconel 718",
+        scope_notes="Grain boundary liquation mechanisms, niobium carbide and Laves phase constitutional liquation, and pre-weld solution annealing recommendations for crack-free repairs.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Corrosion_Fatigue_Airframe_Aluminum_Alloys_19950008051.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19950008051/downloads/19950008051.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Corrosion Fatigue Crack Initiation and Growth in Airframe Aluminum Alloys",
+        scope_notes="Pitting-to-crack transition mechanics in 2024-T3 and 7075-T6 aluminum alloys under cyclic flight stress and saltwater/exfoliation environments.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Fretting_Corrosion_Fatigue_Aircraft_Rivet_Holes_19950008056.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19950008056/downloads/19950008056.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Fretting Corrosion and Fatigue Crack Nucleation at Aircraft Rivet Holes",
+        scope_notes="Micromotion at fastener countersinks, oxide debris formation (fretting corrosion / black powder), and multi-site damage (MSD) risk in aircraft skin lap joints.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Artificial_Corrosion_Protocol_Aircraft_Skin_Lap_Splices_19950013066.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19950013066/downloads/19950013066.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Accelerated Corrosion Protocol for Aircraft Fuselage Lap Splices",
+        scope_notes="Simulation of crevice and pillowing corrosion in pressurized fuselage skin splices, sealant breakdown, and mechanical pillowing measurement.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Relative_Stress_Corrosion_Cracking_Aluminum_Alloys_19820021548.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19820021548/downloads/19820021548.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Relative Stress Corrosion Cracking Susceptibility of Aircraft Aluminum Alloys",
+        scope_notes="Comparison of SCC susceptibility across 2024-T3, 2024-T851, 7075-T6, 7075-T73, and 7050-T73651 along longitudinal, long-transverse, and short-transverse grain orientations.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Ti-6Al-4V_Electron_Beam_Melted_Characterization_20150022121.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20150022121/downloads/20150022121.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Microstructural Characterization and Fatigue Properties of Electron Beam Melted Ti-6Al-4V",
+        scope_notes="Alpha/beta phase morphology, prior beta grain boundaries, hot isostatic pressing (HIP), and defect tolerance in titanium additive and repair deposits.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Hot_Corrosion_Pits_Fatigue_Disk_Superalloys_20090033745.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20090033745/downloads/20090033745.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Hot Corrosion Pits and Low Cycle Fatigue Life of Turbine Disk Superalloys",
+        scope_notes="Interaction of sulfidation salt deposits with cyclic thermal fatigue, pit morphology in nickel-base superalloys, and crack initiation thresholds.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Laser_Ablation_Surface_Treatment_Structural_Metals_20180006285.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20180006285/downloads/20180006285.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Laser Ablation Surface Treatment of Aerospace Structural Metals",
+        scope_notes="Two-page NASA technical abstract investigating pulsed laser ablation surface preparation for adhesive bonding on titanium and composite substrates, evaluating surface roughness and bond peel strength.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Environmental_Crack_Initiation_Aerospace_Alloys_19820008342.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19820008342/downloads/19820008342.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Environmental Crack Initiation and Subcritical Growth in High Strength Aerospace Alloys",
+        scope_notes="Hydrogen embrittlement, stress corrosion cracking, and sustained load cracking in 4340 and 300M high-strength landing gear steels.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_Light_Aerospace_Alloys_High_Speed_Aircraft_19980013930.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19980013930/downloads/19980013930.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="Light Aerospace Alloys for High-Speed Aircraft Structures",
+        scope_notes="Physical metallurgy, precipitation hardening kinetics, overaging phenomena, and elevated temperature strength of aluminum-lithium, titanium, and high-temp aluminum alloys.",
+    ),
+    DocumentTarget(
+        subfolder="Science",
+        filename="NASA_High_Temperature_Modulus_Damping_Ti_Al_Composites_19790007906.pdf",
+        url="https://ntrs.nasa.gov/api/citations/19790007906/downloads/19790007906.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="High-Temperature Dynamic Modulus and Internal Friction of Titanium and Aluminum Alloys",
+        scope_notes="Temperature-dependent elastic moduli, damping capacity, resonance behavior, and metallurgical phase transformations under thermal cycling.",
+    ),
+
+    # =========================================================================
+    # Workstream 4: Supplier Technical Data & Overhaul Capabilities (corpus/Parts/)
+    # =========================================================================
+    DocumentTarget(
+        subfolder="Parts",
+        filename="ACP_Part_145_Capabilities_Overview.html",
+        url="https://www.jetpartsengineering.com/jpe-companies/acp",
+        tag="supplier",
+        authority_jurisdiction="Jet Parts Engineering / Airline Component Parts (Fort Worth, TX)",
+        license_status="Public Commercial / Technical Marketing Information",
+        redistribute="link-only",
+        title="Airline Component Parts (ACP) - FAA Part 145 Repair Station Capabilities",
+        scope_notes="Overview of ACP facility in Fort Worth, TX; Part 145 ratings for electro-mechanical, pneumatic, hydraulic, and fuel accessories; and custom DER repair development.",
+    ),
+    DocumentTarget(
+        subfolder="Parts",
+        filename="JPE_DER_Repairs_Solutions_Overview.html",
+        url="https://www.jetpartsengineering.com/solutions/der-repairs",
+        tag="supplier",
+        authority_jurisdiction="Jet Parts Engineering",
+        license_status="Public Commercial / Technical Marketing Information",
+        redistribute="link-only",
+        title="Jet Parts Engineering - DER Repair Solutions and Engineering Capabilities",
+        scope_notes="Technical description of DER repairs developed under FAA Form 8110-3 to repair high-scrap rotable components, ignition exciters, wiring harnesses, and lighting actuators.",
+    ),
+    DocumentTarget(
+        subfolder="Parts",
+        filename="JPE_PMA_Parts_Solutions_Overview.html",
+        url="https://www.jetpartsengineering.com/solutions/pma-parts",
+        tag="supplier",
+        authority_jurisdiction="Jet Parts Engineering",
+        license_status="Public Commercial / Technical Marketing Information",
+        redistribute="link-only",
+        title="Jet Parts Engineering - FAA-PMA Parts Solutions",
+        scope_notes="Catalog overview of FAA-PMA approved replacement components for B737, A320, E-Jets, and CFM56 engines, highlighting cost reduction and reverse engineering rigor.",
+    ),
+    DocumentTarget(
+        subfolder="Parts",
+        filename="JPE_DER_Repairs_Ignition_Exciters_CFM56_CF6_GE90.html",
+        url="https://www.jetpartsengineering.com/press-releases/jet-parts-engineering-announces-faa-approval-of-11-new-pma-parts-and-3-der-repairs-in-february",
+        tag="supplier",
+        authority_jurisdiction="Jet Parts Engineering",
+        license_status="Public Commercial Technical Announcement",
+        redistribute="link-only",
+        title="JPE Technical Release: FAA Approval of Ignition Exciters DER Repairs (CFM56 / CF6 / GE90)",
+        scope_notes="Documents FAA-approved DER repair capability for engine ignition exciters across CFM56, CF34, CF6, and GE90 engine families (e.g., P/N 10-631045 series), detailing restoration of high-voltage internal components and hermetic sealing.",
+    ),
+    DocumentTarget(
+        subfolder="Parts",
+        filename="JPE_737MAX_Landing_Light_and_Harness_Clamps.html",
+        url="https://www.jetpartsengineering.com/press-releases/jet-parts-engineering-announces-faa-approval-of-20-new-pma-parts-and-der-repairs",
+        tag="supplier",
+        authority_jurisdiction="Jet Parts Engineering",
+        license_status="Public Commercial Technical Announcement",
+        redistribute="link-only",
+        title="JPE Technical Release: 737MAX Landing Light Hardware and Wire Harness Clamps Approval",
+        scope_notes="Documents FAA approvals for Boeing 737MAX landing light hardware kits, actuator assemblies, and PW2000 engine wiring harness retention clamps.",
+    ),
+    DocumentTarget(
+        subfolder="Parts",
+        filename="JPE_A320_Landing_Light_DER_Repair_OEM_727-1213-03.html",
+        url="https://www.jetpartsengineering.com/press-releases/jet-parts-engineering-announces-faa-approval-of-18-new-pma-parts-and-der-repairs2",
+        tag="supplier",
+        authority_jurisdiction="Jet Parts Engineering",
+        license_status="Public Commercial Technical Announcement",
+        redistribute="link-only",
+        title="JPE Technical Release: A320 Landing Light Assembly DER Repair (OEM 727-1213-03)",
+        scope_notes="Details FAA-approved DER repair procedure for Airbus A320 landing light assembly (OEM P/N 727-1213-03), restoring motor drives, housing cracks, and reflector degradation.",
+    ),
+    DocumentTarget(
+        subfolder="Parts",
+        filename="ACP_FAA_Air_Agency_Certificate_and_OpSpecs_A47R.pdf",
+        url="https://www.jetpartsengineering.com/documents/A47R-Certificate-Limited-Engine-and-Accessory.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA) / Airline Component Parts (Fort Worth, TX)",
+        license_status="Official FAA Air Agency Certificate & Operations Specifications",
+        redistribute="link-only",
+        title="FAA Air Agency Certificate & Operations Specifications: Airline Component Parts (Certificate A47R243Y)",
+        scope_notes="Official FAA 14 CFR Part 145 Air Agency Certificate and Operations Specifications for Airline Component Parts (ACP) in Fort Worth, TX. Establishes Limited Engine rating (CFM56-7B piece parts) and Accessory Class 1, 2, 3 ratings (electro-mechanical, hydraulic, pneumatic, and fuel accessories).",
+    ),
+    DocumentTarget(
+        subfolder="Parts",
+        filename="ACP_EASA_Part_145_Approval_Certificate.pdf",
+        url="https://www.jetpartsengineering.com/documents/EASA-CERT-2027.pdf",
+        tag="authority",
+        authority_jurisdiction="EASA / European Union",
+        license_status="Official EASA Part-145 Approval Certificate",
+        redistribute="link-only",
+        title="EASA Part-145 Approval Certificate: Airline Component Parts (Reference EASA.145.6706)",
+        scope_notes="Official EASA Foreign Part-145 approval certificate under the bilateral agreement (BASA/MAG) authorizing ACP to maintain components and issue EASA Form 1 release certificates.",
+    ),
+    DocumentTarget(
+        subfolder="Parts",
+        filename="ACP_UK_CAA_Part_145_Approval_Certificate.pdf",
+        url="https://www.jetpartsengineering.com/documents/CAA-UK-Approval.pdf",
+        tag="authority",
+        authority_jurisdiction="UK CAA (United Kingdom)",
+        license_status="Official UK CAA Part-145 Approval Certificate",
+        redistribute="link-only",
+        title="UK CAA Part-145 Maintenance Organisation Approval: Airline Component Parts (Reference UK.145.01460)",
+        scope_notes="Official UK CAA Part-145 foreign maintenance organization approval certificate under the UK-US Bilateral Aviation Safety Agreement (BASA).",
+    ),
+    DocumentTarget(
+        subfolder="Parts",
+        filename="ACP_AS9110_Aerospace_Quality_Certificate.pdf",
+        url="https://www.jetpartsengineering.com/documents/AS9110-Airline-Component-Parts-11AUG2026.pdf",
+        tag="supplier",
+        authority_jurisdiction="Airline Component Parts / Aviation Quality Registrars",
+        license_status="AS9110 / ISO 9001 Quality Management Certificate",
+        redistribute="link-only",
+        title="AS9110 Quality Management System Certificate: Airline Component Parts (Fort Worth, TX)",
+        scope_notes="Certifies ACP quality management system compliance under AS9110 for maintenance, repair, and overhaul of aviation accessories and engine components.",
+    ),
+
+    # =========================================================================
+    # Workstream 5: Management, Quality, Safety & Governance (corpus/Management/)
+    # =========================================================================
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_145-9A_Repair_Station_Manual_Guide.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_145-9A.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 145-9A: Guide for Developing and Evaluating Repair Station and Quality Control Manuals",
+        scope_notes="Authoritative advisory guidance and templates for developing 14 CFR Part 145 Repair Station Manuals (RSM) and Quality Control Manuals (QCM), organizational charts, roster maintenance, and inspection procedures.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_120-92B_Safety_Management_Systems.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-92B.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 120-92B: Safety Management Systems for Aviation Service Providers",
+        scope_notes="Defines operational implementation of the four Safety Management System (SMS) pillars: Safety Policy, Safety Risk Management (SRM), Safety Assurance (SA), and Safety Promotion across maintenance depots.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_14_CFR_Part_5_Safety_Management_Systems.pdf",
+        url="https://www.govinfo.gov/content/pkg/CFR-2024-title14-vol1/pdf/CFR-2024-title14-vol1-part5.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA / US GPO (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="14 CFR Part 5: Safety Management Systems (Official GPO Edition)",
+        scope_notes="Official US Government Publishing Office text for 14 CFR Part 5. Establishes legally binding federal mandates for aviation service provider SMS documentation, hazard identification, risk assessment, and confidential safety reporting.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_00-56B_Distributor_Accreditation_Program.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_00-56B.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 00-56B: Voluntary Industry Distributor Accreditation Program",
+        scope_notes="Authoritative accreditation system for aerospace parts distributors; defines accepted quality standards including AS9120, ASA-100, and TAC-2000, trace document archiving, and lot segregation.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_145-10_Repair_Station_Capability_List.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_145-10.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 145-10: Repair Station Capability List Procedures",
+        scope_notes="Guidelines on establishing and amending a 14 CFR § 145.215 electronic capability list without direct FAA pre-approval; self-evaluation criteria, tooling verification, and data currency requirements.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_145-5_Repair_Station_Internal_Evaluation_Programs.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_145-5.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 145-5: Repair Station Internal Evaluation Programs",
+        scope_notes="Advisory guidance for setting up continuing internal quality audit and evaluation programs in Part 145 repair stations, root cause analysis, and corrective action closure tracking.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_120-78A_Electronic_Signatures_Recordkeeping_and_Manuals.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-78A.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 120-78A: Electronic Signatures, Electronic Recordkeeping, and Electronic Manuals",
+        scope_notes="Regulatory criteria for FAA acceptance of digital work cards, cryptographic signatures, electronic maintenance releases, and cloud-hosted technical documentation.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_120-59B_Air_Carrier_Internal_Evaluation_Programs.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-59B.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 120-59B: Air Carrier Internal Evaluation Programs (IEP)",
+        scope_notes="Quality assurance framework for internal audits of air carrier flight operations and contract maintenance providers, establishing auditor independence and executive briefing cycles.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_120-16G_Continuous_Airworthiness_Maintenance_Programs.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-16G.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 120-16G: Continuous Airworthiness Maintenance Programs (CAMP)",
+        scope_notes="Core structure of airline and commercial maintenance programs: Required Inspection Items (RII), maintenance manual distribution, surveillance systems, and contract MRO oversight under 14 CFR Part 121/135.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="OSHA_29_CFR_Part_1910_General_Industry_Safety.pdf",
+        url="https://www.govinfo.gov/content/pkg/CFR-2024-title29-vol5/pdf/CFR-2024-title29-vol5-part1910.pdf",
+        tag="authority",
+        authority_jurisdiction="OSHA / US GPO (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="29 CFR Part 1910: Occupational Safety and Health Standards - General Industry (Official GPO Edition)",
+        scope_notes="Federal workplace safety mandates governing aerospace maintenance hangars and overhaul shops: Personal Protective Equipment (Subpart I), Hazard Communication & SDS (§ 1910.1200), and Emergency Action Plans (§ 1910.38).",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_120-96A_Hazardous_Materials_Training_Program.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-96A.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 120-96A: Hazardous Materials Training Programs for Certificated Entities",
+        scope_notes="Mandatory HAZMAT and dangerous goods handling requirements under 14 CFR Part 145 and 49 CFR Part 172: chemical solvent storage, chemical strippers, lithium battery shipping, and squib/fire bottle handling.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_120-72A_Maintenance_Resource_Management_Training.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-72A.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 120-72A: Maintenance Resource Management Training (MRM)",
+        scope_notes="Human factors in aviation maintenance: situational awareness, communication barriers, fatigue management, and shift handover protocols to prevent technician error.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_120-66C_Aviation_Safety_Action_Program_ASAP.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-66C.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 120-66C: Aviation Safety Action Program (ASAP)",
+        scope_notes="Voluntary, non-punitive safety reporting guidelines for maintenance personnel; Event Review Committee (ERC) consensus, corrective action implementation, and enforcement waiver criteria.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="FAA_AC_00-58B_Voluntary_Disclosure_Reporting_Program.pdf",
+        url="https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_00-58B.pdf",
+        tag="authority",
+        authority_jurisdiction="FAA (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="FAA AC 00-58B: Voluntary Disclosure Reporting Program (VDRP)",
+        scope_notes="Process for certificated repair stations and air carriers to self-report inadvertent regulatory noncompliance and implement comprehensive fixes without civil penalty.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="BIS_15_CFR_Part_730_General_Information_EAR.pdf",
+        url="https://www.govinfo.gov/content/pkg/CFR-2024-title15-vol2/pdf/CFR-2024-title15-vol2-part730.pdf",
+        tag="authority",
+        authority_jurisdiction="BIS / US GPO (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="15 CFR Part 730: Export Administration Regulations - General Information (Official GPO Edition)",
+        scope_notes="Department of Commerce dual-use export control baseline: Commerce Control List (CCL), Export Control Classification Numbers (ECCN), and interagency jurisdiction boundaries.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="BIS_15_CFR_Part_734_Scope_of_EAR.pdf",
+        url="https://www.govinfo.gov/content/pkg/CFR-2024-title15-vol2/pdf/CFR-2024-title15-vol2-part734.pdf",
+        tag="authority",
+        authority_jurisdiction="BIS / US GPO (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="15 CFR Part 734: Scope of the Export Administration Regulations (Official GPO Edition)",
+        scope_notes="Defines items subject to the EAR, deemed exports to foreign national maintenance technicians, technical data releases, and public domain technology exclusions.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="ITAR_22_CFR_Part_120_General_Information_ITAR.pdf",
+        url="https://www.govinfo.gov/content/pkg/CFR-2024-title22-vol1/pdf/CFR-2024-title22-vol1-part120.pdf",
+        tag="authority",
+        authority_jurisdiction="State Dept DDTC / US GPO (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="22 CFR Part 120: International Traffic in Arms Regulations - Purpose and Definitions (Official GPO Edition)",
+        scope_notes="Department of State defense trade controls: defense article definitions, technical data controls, defense services, and foreign person employment restrictions in aerospace repair facilities.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="ITAR_22_CFR_Part_121_US_Munitions_List.pdf",
+        url="https://www.govinfo.gov/content/pkg/CFR-2024-title22-vol1/pdf/CFR-2024-title22-vol1-part121.pdf",
+        tag="authority",
+        authority_jurisdiction="State Dept DDTC / US GPO (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="22 CFR Part 121: The United States Munitions List (Official GPO Edition)",
+        scope_notes="Categorization of controlled defense articles, specifically Category VIII (Military Aircraft and Gas Turbine Engines, parts, components, and specialized MRO tooling).",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="NIST_SP_800-171r2_Protecting_CUI_in_Nonfederal_Systems.pdf",
+        url="https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-171r2.pdf",
+        tag="authority",
+        authority_jurisdiction="NIST (USA)",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="NIST SP 800-171 Rev. 2: Protecting Controlled Unclassified Information in Nonfederal Systems and Organizations",
+        scope_notes="Mandatory cybersecurity and data protection standards for aerospace contractors handling Controlled Unclassified Information (CUI), export-controlled engineering drawings, and CMMs.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="AAR_Corp_Form_10Q_Q1_2027.html",
+        url="https://www.sec.gov/Archives/edgar/data/1750/000110465926111786/air-20260831x10q.htm",
+        tag="supplier",
+        authority_jurisdiction="AAR CORP / US SEC (USA)",
+        license_status="SEC Public Regulatory Disclosure (Safe for public viewing; corporate disclaimers apply)",
+        redistribute="link-only",
+        title="AAR CORP: Form 10-Q Quarterly Report (SEC EDGAR Public Filing)",
+        scope_notes="Quarterly financial disclosure of premier independent aviation aftermarket services provider: segment performance in Aviation Services and Expeditionary Services, rotable parts inventory valuation, and MRO long-term contracts.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="HEICO_Corp_Form_10Q_Q3_2026.html",
+        url="https://www.sec.gov/Archives/edgar/data/46619/000004661926000020/hei-20260731.htm",
+        tag="supplier",
+        authority_jurisdiction="HEICO Corporation / US SEC (USA)",
+        license_status="SEC Public Regulatory Disclosure (Safe for public viewing; corporate disclaimers apply)",
+        redistribute="link-only",
+        title="HEICO Corporation: Form 10-Q Quarterly Report (SEC EDGAR Public Filing)",
+        scope_notes="Quarterly financial report of leading aerospace PMA manufacturer and Part 145 accessory overhaul provider: Flight Support Group operating margins, PMA engineering development costs, and aftermarket distribution dynamics.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="NASA_Systems_Engineering_Handbook_20170005887.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20170005887/downloads/20170005887.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="NASA Systems Engineering Handbook (NASA/SP-2016-6105 Rev 2)",
+        scope_notes="Comprehensive reference on technical project lifecycle management, requirements allocation, Statement of Work (SOW) review, engineering design milestones, and trade study methodology.",
+    ),
+    DocumentTarget(
+        subfolder="Management",
+        filename="NASA_Safety_Auditing_and_Assessments_20110024176.pdf",
+        url="https://ntrs.nasa.gov/api/citations/20110024176/downloads/20110024176.pdf",
+        tag="research",
+        authority_jurisdiction="NASA",
+        license_status="US Government Work (Public Domain)",
+        redistribute="yes",
+        title="NASA Technical Report: Safety Auditing and Assessments",
+        scope_notes="Auditing practices in high-hazard aerospace operations: objective evidence evaluation, nonconformance finding taxonomy, and verification of corrective and preventive actions (CAPA).",
+    ),
+]
+
+
+def validate_content(filename: str, data: bytes) -> tuple[bool, str]:
+    """Validate content integrity and fail loudly on invalid/blocked downloads."""
+    if not data or len(data) == 0:
+        return False, "Empty response (0 bytes)"
+
+    if filename.endswith(".pdf"):
+        # Must start with %PDF- header
+        if not data.startswith(b"%PDF-"):
+            snippet = repr(data[:120])
+            return False, f"Invalid PDF header: expected '%PDF-', got {snippet}"
+        if len(data) < 2048:
+            return False, f"PDF file unrealistically small ({len(data)} bytes)"
+    elif filename.endswith(".html") or filename.endswith(".htm"):
+        if len(data) < 2000:
+            return False, f"HTML file too short ({len(data)} bytes), likely an error stub"
+        text_sample = data[:4096].decode("utf-8", errors="ignore")
+        if "Request Access" in text_sample or "Access Denied" in text_sample or "403 Forbidden" in text_sample:
+            return False, "Bot-block / Access Denied page detected"
+    return True, "Valid"
+
+
+def download_target(target: DocumentTarget) -> tuple[Path, str, int] | None:
+    """Download a single target if not present, validating and recording hash."""
+    dest_dir = CORPUS_DIR / target.subfolder
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_file = dest_dir / target.filename
+
+    if dest_file.exists():
+        data = dest_file.read_bytes()
+        valid, reason = validate_content(target.filename, data)
+        if valid:
+            sha256 = hashlib.sha256(data).hexdigest()
+            size = len(data)
+            print(f"[{target.subfolder}] {target.filename} already cached & verified ({size:,} bytes, {sha256[:12]}…)")
+            return dest_file, sha256, size
+        else:
+            print(f"[{target.subfolder}] Cached {target.filename} failed validation: {reason}. Re-downloading...")
+            dest_file.unlink(missing_ok=True)
+
+    if "sec.gov" in target.url:
+        headers = {"User-Agent": "HangarIndex-Research/1.0 (project-lead@hangarindex.internal)"}
+    else:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+    req = urllib.request.Request(target.url, headers=headers)
+
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            print(f"[{target.subfolder}] Fetching {target.filename} (attempt {attempt})...")
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                data = resp.read()
+                valid, reason = validate_content(target.filename, data)
+                if not valid:
+                    print(f"  VALIDATION ERROR: {reason}")
+                    if attempt < max_retries:
+                        time.sleep(2.0 * attempt)
+                        continue
+                    else:
+                        print(f"  FAILED to acquire valid {target.filename}: {reason}")
+                        return None
+
+                dest_file.write_bytes(data)
+                sha256 = hashlib.sha256(data).hexdigest()
+                size = len(data)
+                print(f"  -> Saved & verified {size:,} bytes | SHA-256: {sha256[:16]}...")
+                return dest_file, sha256, size
+        except urllib.error.URLError as e:
+            print(f"  URLError on attempt {attempt}: {e}")
+            if attempt < max_retries:
+                time.sleep(2.0 * attempt)
+            else:
+                print(f"  FAILED to download {target.filename} after {max_retries} attempts.")
+                return None
+        except Exception as e:
+            print(f"  Unexpected error on attempt {attempt}: {e}")
+            if attempt < max_retries:
+                time.sleep(2.0 * attempt)
+            else:
+                return None
+    return None
+
+
+def write_source_register(subfolder: str, results: list[tuple[DocumentTarget, str, int]]) -> None:
+    """Generate a clean SOURCE-REGISTER.md in the subfolder."""
+    dest_dir = CORPUS_DIR / subfolder
+    register_path = dest_dir / "SOURCE-REGISTER.md"
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    lines = [
+        f"# Source Register — `corpus/{subfolder}/`",
+        "",
+        f"Verified public-source collection gathered on {now_iso} per HangarIndex expansion plan.",
+        f"Every document includes official URL, SHA-256 hash, authority/educational/research/supplier taxonomy tag, legal license, and redistribution flag.",
+        "",
+        "| Local file | Tag | Authority / Origin | Official Source | SHA-256 | License / Status | Redistribute | Scope & Coverage |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+
+    for target, sha256, size in results:
+        sha_short = sha256[:12]
+        lines.append(
+            f"| `{target.filename}` | `{target.tag}` | {target.authority_jurisdiction} | [{target.title}]({target.url}) | `{sha_short}…` | {target.license_status} | `{target.redistribute}` | {target.scope_notes} |"
+        )
+
+    lines.extend([
+        "",
+        "## Checksums and Verification",
+        "",
+        "| Filename | Full SHA-256 Checksum | Size (Bytes) |",
+        "| --- | --- | --- |",
+    ])
+    for target, sha256, size in results:
+        lines.append(f"| `{target.filename}` | `{sha256}` | {size:,} |")
+
+    lines.extend([
+        "",
+        "## Usage & Citation Caution",
+        "",
+        "- Documents tagged `authority` represent binding rules or official advisory material within their specified jurisdiction.",
+        "- Documents tagged `research` represent scientific reports and metallurgical studies; cite as research context, not task-specific repair instructions.",
+        "- Documents tagged `supplier` represent commercial and technical marketing data; they provide valuable part numbers and repair capabilities but do not supersede OEM CMMs or approved data for aircraft installation.",
+        "- The documents are kept locally on disk and excluded from git tracking by `.gitignore` (`corpus/**`). Only this `SOURCE-REGISTER.md` is committed.",
+        "",
+    ])
+
+    register_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"Generated {register_path} with {len(results)} records.")
+
+
+def main() -> int:
+    print(f"Starting HangarIndex corpus acquisition across {len(TARGETS)} targets...")
+    results_by_subfolder: dict[str, list[tuple[DocumentTarget, str, int]]] = {}
+
+    for target in TARGETS:
+        res = download_target(target)
+        if res is not None:
+            _, sha256, size = res
+            results_by_subfolder.setdefault(target.subfolder, []).append((target, sha256, size))
+        # Polite rate limiting between requests
+        time.sleep(0.4)
+
+    print("\nWriting SOURCE-REGISTER.md files...")
+    for subfolder, results in results_by_subfolder.items():
+        write_source_register(subfolder, results)
+
+    print("\nCorpus acquisition complete!")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

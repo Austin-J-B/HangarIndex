@@ -1,0 +1,39 @@
+# Source Register — `corpus/Parts/`
+
+Verified public-source collection gathered on 2026-10-07 per HangarIndex expansion plan.
+Every document includes official URL, SHA-256 hash, authority/educational/research/supplier taxonomy tag, legal license, and redistribution flag.
+
+| Local file | Tag | Authority / Origin | Official Source | SHA-256 | License / Status | Redistribute | Scope & Coverage |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `ACP_Part_145_Capabilities_Overview.html` | `supplier` | Jet Parts Engineering / Airline Component Parts (Fort Worth, TX) | [Airline Component Parts (ACP) - FAA Part 145 Repair Station Capabilities](https://www.jetpartsengineering.com/jpe-companies/acp) | `d80fff4ad379…` | Public Commercial / Technical Marketing Information | `link-only` | Overview of ACP facility in Fort Worth, TX; Part 145 ratings for electro-mechanical, pneumatic, hydraulic, and fuel accessories; and custom DER repair development. |
+| `JPE_DER_Repairs_Solutions_Overview.html` | `supplier` | Jet Parts Engineering | [Jet Parts Engineering - DER Repair Solutions and Engineering Capabilities](https://www.jetpartsengineering.com/solutions/der-repairs) | `6f64968dad63…` | Public Commercial / Technical Marketing Information | `link-only` | Technical description of DER repairs developed under FAA Form 8110-3 to repair high-scrap rotable components, ignition exciters, wiring harnesses, and lighting actuators. |
+| `JPE_PMA_Parts_Solutions_Overview.html` | `supplier` | Jet Parts Engineering | [Jet Parts Engineering - FAA-PMA Parts Solutions](https://www.jetpartsengineering.com/solutions/pma-parts) | `9aa3a4c036f9…` | Public Commercial / Technical Marketing Information | `link-only` | Catalog overview of FAA-PMA approved replacement components for B737, A320, E-Jets, and CFM56 engines, highlighting cost reduction and reverse engineering rigor. |
+| `JPE_DER_Repairs_Ignition_Exciters_CFM56_CF6_GE90.html` | `supplier` | Jet Parts Engineering | [JPE Technical Release: FAA Approval of Ignition Exciters DER Repairs (CFM56 / CF6 / GE90)](https://www.jetpartsengineering.com/press-releases/jet-parts-engineering-announces-faa-approval-of-11-new-pma-parts-and-3-der-repairs-in-february) | `b8dac7c4a4b6…` | Public Commercial Technical Announcement | `link-only` | Documents FAA-approved DER repair capability for engine ignition exciters across CFM56, CF34, CF6, and GE90 engine families (e.g., P/N 10-631045 series), detailing restoration of high-voltage internal components and hermetic sealing. |
+| `JPE_737MAX_Landing_Light_and_Harness_Clamps.html` | `supplier` | Jet Parts Engineering | [JPE Technical Release: 737MAX Landing Light Hardware and Wire Harness Clamps Approval](https://www.jetpartsengineering.com/press-releases/jet-parts-engineering-announces-faa-approval-of-20-new-pma-parts-and-der-repairs) | `8e6b3c2e4932…` | Public Commercial Technical Announcement | `link-only` | Documents FAA approvals for Boeing 737MAX landing light hardware kits, actuator assemblies, and PW2000 engine wiring harness retention clamps. |
+| `JPE_A320_Landing_Light_DER_Repair_OEM_727-1213-03.html` | `supplier` | Jet Parts Engineering | [JPE Technical Release: A320 Landing Light Assembly DER Repair (OEM 727-1213-03)](https://www.jetpartsengineering.com/press-releases/jet-parts-engineering-announces-faa-approval-of-18-new-pma-parts-and-der-repairs2) | `44183fabf7bb…` | Public Commercial Technical Announcement | `link-only` | Details FAA-approved DER repair procedure for Airbus A320 landing light assembly (OEM P/N 727-1213-03), restoring motor drives, housing cracks, and reflector degradation. |
+| `ACP_FAA_Air_Agency_Certificate_and_OpSpecs_A47R.pdf` | `authority` | FAA (USA) / Airline Component Parts (Fort Worth, TX) | [FAA Air Agency Certificate & Operations Specifications: Airline Component Parts (Certificate A47R243Y)](https://www.jetpartsengineering.com/documents/A47R-Certificate-Limited-Engine-and-Accessory.pdf) | `e48bf8bf3725…` | Official FAA Air Agency Certificate & Operations Specifications | `link-only` | Official FAA 14 CFR Part 145 Air Agency Certificate and Operations Specifications for Airline Component Parts (ACP) in Fort Worth, TX. Establishes Limited Engine rating (CFM56-7B piece parts) and Accessory Class 1, 2, 3 ratings (electro-mechanical, hydraulic, pneumatic, and fuel accessories). |
+| `ACP_EASA_Part_145_Approval_Certificate.pdf` | `authority` | EASA / European Union | [EASA Part-145 Approval Certificate: Airline Component Parts (Reference EASA.145.6706)](https://www.jetpartsengineering.com/documents/EASA-CERT-2027.pdf) | `fbc169567eaa…` | Official EASA Part-145 Approval Certificate | `link-only` | Official EASA Foreign Part-145 approval certificate under the bilateral agreement (BASA/MAG) authorizing ACP to maintain components and issue EASA Form 1 release certificates. |
+| `ACP_UK_CAA_Part_145_Approval_Certificate.pdf` | `authority` | UK CAA (United Kingdom) | [UK CAA Part-145 Maintenance Organisation Approval: Airline Component Parts (Reference UK.145.01460)](https://www.jetpartsengineering.com/documents/CAA-UK-Approval.pdf) | `43a5c5f1c9e8…` | Official UK CAA Part-145 Approval Certificate | `link-only` | Official UK CAA Part-145 foreign maintenance organization approval certificate under the UK-US Bilateral Aviation Safety Agreement (BASA). |
+| `ACP_AS9110_Aerospace_Quality_Certificate.pdf` | `supplier` | Airline Component Parts / Aviation Quality Registrars | [AS9110 Quality Management System Certificate: Airline Component Parts (Fort Worth, TX)](https://www.jetpartsengineering.com/documents/AS9110-Airline-Component-Parts-11AUG2026.pdf) | `5744cddc4a54…` | AS9110 / ISO 9001 Quality Management Certificate | `link-only` | Certifies ACP quality management system compliance under AS9110 for maintenance, repair, and overhaul of aviation accessories and engine components. |
+
+## Checksums and Verification
+
+| Filename | Full SHA-256 Checksum | Size (Bytes) |
+| --- | --- | --- |
+| `ACP_Part_145_Capabilities_Overview.html` | `d80fff4ad379e255cc4d754107e66816a1eea109ada9a64b846d226661961a3d` | 13,081 |
+| `JPE_DER_Repairs_Solutions_Overview.html` | `6f64968dad636647b9e96dacb3abd71e6969fbbaecefd508c7bf8d2c810f544b` | 12,976 |
+| `JPE_PMA_Parts_Solutions_Overview.html` | `9aa3a4c036f9c79e3bf5e8e8732a8880016496d809720fd1dafac524b89e4b94` | 12,218 |
+| `JPE_DER_Repairs_Ignition_Exciters_CFM56_CF6_GE90.html` | `b8dac7c4a4b6af2e783808280b07ad5055f392239b21fb8a918ac452e7d36def` | 13,619 |
+| `JPE_737MAX_Landing_Light_and_Harness_Clamps.html` | `8e6b3c2e49322d0db7966b89d8e5bec557fd40453949b484fb74b2fe54cf6840` | 13,746 |
+| `JPE_A320_Landing_Light_DER_Repair_OEM_727-1213-03.html` | `44183fabf7bb4b4457cad5abbd2fab07fa887f0d0337366692af12d1d06f03c1` | 13,435 |
+| `ACP_FAA_Air_Agency_Certificate_and_OpSpecs_A47R.pdf` | `e48bf8bf3725939fcb46b84d2e0689f139f3709d356cce8207458a2f9e2204c8` | 183,776 |
+| `ACP_EASA_Part_145_Approval_Certificate.pdf` | `fbc169567eaa4124a7668fd6c4e0f376a9ea569b15beacdb7900b896d6437880` | 1,622,605 |
+| `ACP_UK_CAA_Part_145_Approval_Certificate.pdf` | `43a5c5f1c9e861d4c4a011fc04248d07f35d08cbed623a5dd8ebeeb6280d15de` | 200,629 |
+| `ACP_AS9110_Aerospace_Quality_Certificate.pdf` | `5744cddc4a545ac7cb32cabb79c21565afebe402bef110aade12e9f66094c9cc` | 321,801 |
+
+## Usage & Citation Caution
+
+- Documents tagged `authority` represent binding rules or official advisory material within their specified jurisdiction.
+- Documents tagged `research` represent scientific reports and metallurgical studies; cite as research context, not task-specific repair instructions.
+- Documents tagged `supplier` represent commercial and technical marketing data; they provide valuable part numbers and repair capabilities but do not supersede OEM CMMs or approved data for aircraft installation.
+- The documents are kept locally on disk and excluded from git tracking by `.gitignore` (`corpus/**`). Only this `SOURCE-REGISTER.md` is committed.

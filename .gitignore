@@ -1,0 +1,12 @@
+# App runtime
+.env
+.venv/
+__pycache__/
+.data/
+
+# Document library: kept on disk, not in git. Only the files that describe it are tracked,
+# so the repo still says what the corpus is and where each document came from.
+corpus/**
+!corpus/**/
+!corpus/README.md
+!corpus/**/SOURCE-REGISTER.md

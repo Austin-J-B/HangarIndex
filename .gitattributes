@@ -1,0 +1,2 @@
+# Shell scripts must keep LF or Git Bash refuses them; PowerShell is fine either way.
+*.sh text eol=lf

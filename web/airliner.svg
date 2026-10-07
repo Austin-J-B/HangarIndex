@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 160 1536 704" fill="none">
+  <title>Passenger jet passing overhead toward the upper right</title>
+  <desc>A three-quarter view from below, with complete swept wings, flap seams, access panels, and two detailed turbofans in flat blue-gray tones.</desc>
+  <g stroke="#426070" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Wings and stabilizers sit behind the fuselage. -->
+    <path fill="#c8d8d7" d="M804 442 145 305q-14-3-19-16l-63-83q-8-8-17-1l40 89q6 12 21 18l575 254 136-59Z"/>
+    <path fill="#b7cbcd" d="M938 594 1407 714 1424 730 1408 746 1034 691Z"/>
+    <path fill="#d5e2df" d="m1407 714-35-65q-3-7 8-4l47 67q10 15-3 18Z"/>
+    <!-- Restrained control-surface seams on the two continuous wing surfaces. -->
+    <g stroke="#829ca3" stroke-width="3">
+      <path d="m151 315 530 218m-359-173-13 20m194 16-26 44m169-12-38 66"/>
+      <path d="m1036 667 364 67m-118-47-20 21m92-2-14 16"/>
+    </g>
+    <path fill="#aac2c6" d="m244 711-58-258 34-15q10-5 19 8l107 129q22 27 60 48l51 25Z"/>
+    <path fill="#c8d8d7" d="m353 738 158 86q7 9-12 17l-95-42-126-20Z"/>
+    <path fill="#d5e2df" d="M382 735 55 680q-15 0-33 14l163 65 95 4Z"/>
+    <path stroke="#829ca3" stroke-width="3" d="m213 463 36 187 39 23M75 698l171 48m130 28 101 52"/>
+    <!-- Two flat tones describe the round fuselage. -->
+    <path fill="#f7f6ef" d="M210 770q42-41 113-79l842-423c75-42 132-74 183-85 56-14 80 3 112 28 34 4 46 23 36 52-19 47-56 88-106 126L699 730c-95 45-195 62-302 61H218q-25-1-8-21Z"/>
+    <path fill="#d4e2e0" stroke="none" d="M210 781c134-18 288-64 388-110l800-406q63-31 98-22c-12 51-47 97-106 136L699 720c-95 45-195 66-302 66H219Z"/>
+    <path stroke="#426070" fill="none" d="M210 770q42-41 113-79l842-423c75-42 132-74 183-85 56-14 80 3 112 28 34 4 46 23 36 52-19 47-56 88-106 126L699 730c-95 45-195 62-302 61H218q-25-1-8-21Z"/>
+    <!-- Cabin windows and the three windshield panes. -->
+    <path stroke="#577481" stroke-width="8" stroke-dasharray="1 23" d="m1295 267-840 420"/>
+    <g fill="#3a5969" stroke="none">
+      <path d="M1330 211q2-6 10-9l11-4-6 23-18 7q-3-7 3-17Z"/>
+      <path d="m1359 197 21-5 12 16-39 12Z"/>
+      <path d="M1387 192q28-2 46 14l-31 2Z"/>
+    </g>
+    <!-- Flush doors and service panels follow the perspective of the body. -->
+    <g stroke="#81999f" stroke-width="3">
+      <path fill="#f7f6ef" d="m1260 266 24-12q5-2 6 4l7 42q1 5-4 8l-22 11q-5 2-6-3l-9-41q-1-6 4-9Z"/>
+      <path d="m1274 305 8-4m-730 349 19-10 10 37-22 10Zm460-164 51-26 9 20-51 26Z"/>
+      <path d="m1437 282 22 28m-691 327 76-38"/>
+    </g>
+    <!-- Underwing nacelles with cowling joints and simple fan hubs. -->
+    <path fill="#b7cbcd" d="m777 497 153-52 40 23-78 67-103 25Z"/>
+    <path fill="#f7f6ef" d="M835 386c-52 3-78 39-101 84-13 26-5 45 18 58 18 13 45 12 69 0l75-35c22-21 32-58 16-88-15-22-46-28-77-19Z"/>
+    <path fill="#c9dad8" stroke="none" d="M737 481q-11 28 18 43 29 18 67 0l73-36-30-27-61 38q-42 23-67-18Z"/>
+    <path stroke="#81999f" stroke-width="3" d="M812 393q-44 36-42 97m-19 3 65-26"/>
+    <ellipse cx="875" cy="446" rx="42" ry="61" transform="rotate(-12 875 446)" fill="#e6ece5"/>
+    <ellipse cx="876" cy="446" rx="30" ry="48" transform="rotate(-12 876 446)" fill="#365362" stroke="none"/>
+    <g transform="translate(876 446) rotate(-12)" stroke="#91a9ae" stroke-width="2.5">
+      <path d="M0-9q-11-10-5-31M6-6q10-5 17-20M8 3q13 8 14 23M2 10q7 14 2 30M-6 7q-11 6-16 19M-8-3q-12-10-14-23"/>
+      <ellipse rx="7" ry="11" fill="#a8bdbe" stroke="none"/>
+    </g>
+    <path fill="#b7cbcd" d="m1119 633 103-86 45 25-76 95Z"/>
+    <path fill="#f7f6ef" d="M1243 532c-35-4-65 17-89 45l-20 49c-11 31 6 53 37 57 26 3 61-9 85-29 28-23 48-65 35-96q-15-26-48-26Z"/>
+    <path fill="#c9dad8" stroke="none" d="M1135 634q-8 35 37 43 36 2 80-28l-25-22q-63 50-92 7Z"/>
+    <path stroke="#81999f" stroke-width="3" d="M1216 539q-40 29-42 83m-29 24 64-32"/>
+    <ellipse cx="1261" cy="591" rx="37" ry="54" transform="rotate(13 1261 591)" fill="#e6ece5"/>
+    <ellipse cx="1262" cy="591" rx="26" ry="42" transform="rotate(13 1262 591)" fill="#365362" stroke="none"/>
+    <g transform="translate(1262 591) rotate(13)" stroke="#91a9ae" stroke-width="2.5">
+      <path d="M0-8q-9-9-4-27M5-5q10-5 15-18M7 3q10 7 12 20M2 8q6 12 2 27M-5 6q-10 5-14 17M-7-3q-10-8-12-20"/>
+      <ellipse rx="6" ry="10" fill="#a8bdbe" stroke="none"/>
+    </g>
+  </g>
+</svg>

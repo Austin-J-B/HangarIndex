@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101f2e">
+  <title>HangarIndex — Maintenance document search</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#search" aria-label="HangarIndex home">
+        <span class="brand-mark"><svg viewBox="0 0 36 36" aria-hidden="true"><path d="M5 22.5 18 6l13 16.5M9 19h18M11 22v8m14-8v8M5 30h26M18 11v9m-4-4h8"/></svg></span>
+        <span><strong>Hangar<span>Index</span></strong><small>DOCUMENT REFERENCE</small></span>
+      </a>
+
+      <div class="sidebar-section-label">WORKSPACE</div>
+      <nav class="primary-nav" aria-label="Main navigation">
+        <button class="nav-item active" data-view="search"><span class="nav-icon"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="m13 13 4 4"/></svg></span><span>Document search</span><kbd>/</kbd></button>
+        <button class="nav-item" data-view="assistant"><span class="nav-icon"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H8l-5 3V4a1 1 0 0 1 1-1Z"/></svg></span><span>Ask the assistant</span></button>
+        <button class="nav-item" data-view="library"><span class="nav-icon"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 2h9l3 3v13H4Z"/><path d="M12 2v4h4M7 10h6M7 13h6"/></svg></span><span>Indexed library</span></button>
+      </nav>
+
+      <div class="sidebar-section-label source-label">SOURCE FOLDER</div>
+      <label class="field-label" for="corpus-path">Local or network path</label>
+      <input id="corpus-path" class="path-input" type="text" spellcheck="false" placeholder="Z:\Public\Maintenance">
+      <button id="index-button" class="index-button"><span class="index-icon">↻</span> Index this folder</button>
+      <div id="index-progress" class="index-progress hidden">
+        <div class="progress-top"><span id="progress-label">Indexing files…</span><span id="progress-count">0 / 0</span></div>
+        <div class="progress-track"><span id="progress-fill"></span></div>
+        <div id="progress-current" class="progress-current"></div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-label">INDEX SNAPSHOT</div>
+      <div class="stats-grid">
+        <div class="stat-cell"><strong id="stat-docs">0</strong><span>documents</span></div>
+        <div class="stat-cell"><strong id="stat-chunks">0</strong><span>passages</span></div>
+      </div>
+      <div class="storage-note"><span class="tiny-dot"></span><span id="storage-label">Index stored on this machine</span></div>
+
+      <div class="sidebar-spacer"></div>
+      <div class="privacy-card">
+        
+        <div><strong>Local by default</strong><p>Documents stay here. Only the text sent to a configured external model leaves this machine.</p></div>
+      </div>
+      <div class="sidebar-footer"><span class="poc-badge">PROOF OF CONCEPT</span><span>v0.1</span></div>
+    </aside>
+
+    <main class="main-panel">
+      <header class="topbar">
+        <div class="breadcrumbs"><span>MAINTENANCE LIBRARY</span><i>/</i><strong id="breadcrumb-current">SEARCH</strong></div>
+        <div class="topbar-right"><span class="connection-dot"></span><span id="model-label">Local assistant · checking</span><span class="topbar-divider"></span><button class="help-button" id="help-button" aria-label="About HangarIndex">?</button></div>
+      </header>
+
+      <section class="view active" id="view-search">
+        <div class="content-wrap">
+          <div class="hero-grid">
+            <div class="hero-copy">
+              <h1>Maintenance reference library</h1>
+              <p>Search component manuals, repair procedures, supplier references, and regulations. Results link directly to the source passage.</p>
+            </div>
+            <div class="hero-art" aria-hidden="true">
+              <svg class="hero-flight-path" viewBox="0 0 350 233" fill="none">
+                <path class="route" d="M22 191C61 211 91 186 126 199S185 226 222 209 274 194 316 199"/>
+                <circle class="point" cx="316" cy="199" r="4"/>
+                <circle class="halo" cx="316" cy="199" r="11"/>
+              </svg>
+              <img src="/assets/airliner.png" width="1536" height="1024" alt="">
+            </div>
+          </div>
+
+          <div class="search-panel">
+            <div class="search-mode"><span>Search documents</span><span class="mode-separator">·</span><span class="mode-muted">Titles, part numbers, tasks, citations</span></div>
+            <div class="search-row"><span class="search-symbol"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="m13 13 4 4"/></svg></span><input id="search-query" type="search" autocomplete="off" placeholder="Try a part number, ATA chapter, repair task, or regulation…"><button id="search-button" class="search-button">Search</button></div>
+            <div class="search-bottom"><span><kbd>ENTER</kbd> to search</span><div class="suggestion-label">Examples</div><div class="suggestion-chips"><button data-query="component maintenance manual inspection limits">CMM limits</button><button data-query="14 CFR 145 current technical data">14 CFR 145</button><button data-query="replacement part traceability FAA AC 20-62E">part traceability</button></div></div>
+          </div>
+
+          <div id="search-message" class="message-line"></div>
+          <div id="search-output" class="search-output">
+            <div class="welcome-note"><div><strong>Search your indexed documents.</strong><p>The starter folder includes public maintenance, regulatory, coating, and materials references. Index it from the left panel, or point the app at a company-public folder.</p></div></div>
+          </div>
+          <div class="bottom-note"><span class="note-icon">ⓘ</span> Use search results to find and compare source documents. Confirm applicability in current controlled data before making a maintenance determination.</div>
+        </div>
+      </section>
+
+      <section class="view" id="view-assistant">
+        <div class="content-wrap assistant-wrap">
+          <div class="page-kicker"><span>DOCUMENT ASSISTANT</span><span class="model-chip" id="assistant-model-chip">LOCAL MODEL</span></div>
+          <div class="assistant-heading"><div><h1>Ask a question</h1><p>Answers are grounded in indexed passages and linked to their source documents.</p></div></div>
+          <div class="assistant-callout"><div><strong>Source-first answers</strong><p>The assistant cites retrieved passages, calls out missing information, and groups matching regulatory references separately.</p></div></div>
+          <div id="chat-thread" class="chat-thread">
+            <div class="assistant-welcome"><div class="assistant-avatar">H</div><div><span class="message-author">HANGARINDEX ASSISTANT <small>· READY</small></span><div class="assistant-welcome-card"><strong>What are you looking into?</strong><p>Ask about a maintenance task, a part number, a manual requirement, or a regulatory reference.</p><div class="prompt-examples"><button data-question="What does the repair station guidance say about keeping current technical data?">Current technical data</button><button data-question="What guidance covers replacement-part eligibility and traceability?">Parts traceability</button><button data-question="When does AC 43.13-1B apply to an aircraft repair?">AC 43.13 scope</button><button data-question="What public documents can help me research a black F93 aerospace coating, and what product data is still needed?">Black F93</button><button data-question="What do the indexed sources say about aluminum corrosion and conversion coatings?">Aluminum corrosion</button><button data-question="Which references discuss titanium 6Al-4V and corrosion?">Titanium</button></div></div></div></div>
+          </div>
+          <form id="ask-form" class="ask-form"><div class="answer-mode-control"><div class="answer-mode-copy"><span class="answer-mode-label">ANSWER MODE</span><span id="answer-mode-note">qwen3.5:4b · preloaded</span></div><div class="answer-mode-toggle" role="group" aria-label="Answer mode"><button type="button" class="answer-mode-option selected" data-answer-mode="quick" aria-pressed="true">Quick</button><button type="button" class="answer-mode-option" data-answer-mode="thorough" aria-pressed="false">Thorough</button></div></div><textarea id="ask-question" rows="2" placeholder="Ask a maintenance or regulatory question…" aria-label="Question"></textarea><div class="ask-form-footer"><span>Answers use only your indexed library</span><button type="submit" id="ask-button">Ask assistant</button></div></form>
+          <p class="assistant-footnote">Research support only. Verify all findings against current controlled data and applicable approvals.</p>
+        </div>
+      </section>
+
+      <section class="view" id="view-library">
+        <div class="content-wrap library-wrap">
+          <div class="page-kicker"><span>LOCAL DOCUMENT INDEX</span><span class="library-total" id="library-total">0 FILES</span></div>
+          <div class="library-heading"><div><h1>Indexed library</h1><p>Documents available to search from this machine.</p></div><div class="library-tools"><input id="library-filter" type="search" placeholder="Filter by title or type…"><button id="refresh-library">Refresh</button></div></div>
+          <div class="library-banner"><span>▤</span><div><strong>Need to add more?</strong><p>Choose a folder from the left panel and run an incremental index. Supported files: PDF, DOCX, PPTX, XLSX, TXT, CSV, HTML, XML, and Markdown.</p></div></div>
+          <div class="library-table-wrap"><table class="library-table"><thead><tr><th>DOCUMENT</th><th>DOCUMENT TYPE</th><th>UPDATED</th><th>SIZE</th><th>STATUS</th></tr></thead><tbody id="library-body"><tr><td colspan="5" class="empty-table">No documents indexed yet.</td></tr></tbody></table></div>
+          <div class="library-endnote">Document content is indexed locally into a SQLite full-text index. Original files stay in their source folder.</div>
+        </div>
+      </section>
+
+      <footer class="main-footer"><span>HANGARINDEX <b>·</b> LOCAL DOCUMENT SEARCH</span><span>Version 0.1 · Proof of concept</span></footer>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="about-dialog" class="about-dialog"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form><div class="dialog-brand">HANGARINDEX <span>· POC</span></div><h2>Find it. Check the source.</h2><p>HangarIndex scans the folder you select, builds a local text index, and retrieves excerpts to help you locate manuals, supplier references, and regulations.</p><div class="dialog-facts"><div><span>INDEX</span><strong>SQLite full text</strong></div><div><span>DEFAULT LLM</span><strong>Ollama on this machine</strong></div><div><span>DOCUMENTS</span><strong>Source files stay in place</strong></div></div><p class="dialog-small">A proof of concept: scanned PDFs need embedded text. Older binary Office files, image-only scans, and CAD/graphics are not indexed. See README.md for setup and current limitations.</p></dialog>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
