@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101f2e">
+  <title>HangarIndex — Maintenance Document Search</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#search" aria-label="HangarIndex home">
+        <span class="brand-mark">
+          <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M5 22.5 18 6l13 16.5M9 19h18M11 22v8m14-8v8M5 30h26M18 11v9m-4-4h8"/></svg>
+        </span>
+        <span><strong>Hangar<span>Index</span></strong><small>MAINTENANCE LIBRARY</small></span>
+      </a>
+
+      <div class="sidebar-section-label">WORKSPACE</div>
+      <nav class="primary-nav" aria-label="Main navigation">
+        <button class="nav-item active" data-view="search" id="nav-search-item">
+          <span class="nav-icon"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="m13 13 4 4"/></svg></span>
+          <span>Search</span>
+          <kbd>/</kbd>
+        </button>
+        <button class="nav-item" data-view="assistant" id="nav-qa-item">
+          <span class="nav-icon"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H8l-5 3V4a1 1 0 0 1 1-1Z"/></svg></span>
+          <span>Reference Q&amp;A</span>
+        </button>
+        <button class="nav-item" data-view="library" id="nav-library-item">
+          <span class="nav-icon"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 2h9l3 3v13H4Z"/><path d="M12 2v4h4M7 10h6M7 13h6"/></svg></span>
+          <span>Document Index</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-spacer"></div>
+      <div class="sidebar-footer">
+        <span>HangarIndex Library</span>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <header class="topbar">
+        <div class="breadcrumbs">
+          <span>MAINTENANCE LIBRARY</span>
+          <i>/</i>
+          <strong id="breadcrumb-current">SEARCH</strong>
+        </div>
+        <div class="topbar-right">
+          <span class="connection-dot"></span>
+          <span id="model-label">Document Index</span>
+          <span class="topbar-divider"></span>
+          <button class="help-button" id="help-button" aria-label="About library">?</button>
+        </div>
+      </header>
+
+      <!-- SEARCH VIEW -->
+      <section class="view active" id="view-search">
+        <div class="content-wrap">
+          <div class="hero-grid">
+            <div class="hero-copy">
+              <h1>Technical reference search</h1>
+              <p>Search airworthiness regulations, advisory circulars, repair procedures, and metallurgical data across verified reference documents.</p>
+            </div>
+          </div>
+
+          <div class="search-panel">
+            <div class="search-mode">
+              <span class="mode-indicator"></span>
+              <span>Indexed documents</span>
+              <span class="mode-separator">·</span>
+              <span class="mode-muted">Regulations, repair methods, materials, inspection standards</span>
+            </div>
+            <div class="search-row">
+              <span class="search-symbol">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="m13 13 4 4"/></svg>
+              </span>
+              <input id="search-query" type="search" autocomplete="off" placeholder="Search by keyword, CFR part, material, or repair method (e.g. 'alodine aluminum', '14 CFR 43.13')…">
+              <button id="search-button" class="search-button">Search</button>
+            </div>
+            <div class="search-bottom">
+              <span><kbd>ENTER</kbd> or type to search</span>
+              <div class="suggestion-label">Sample queries</div>
+              <div class="suggestion-chips" id="suggestion-chips">
+                <button data-query="chemical corrosion removal steel">chemical corrosion steel</button>
+                <button data-query="14 CFR 145 repair station requirements">14 CFR 145</button>
+                <button data-query="Inconel 718 repeated weld repair microfissuring">Inconel 718 welding</button>
+                <button data-query="DO-178C airborne software certification">DO-178C software</button>
+                <button data-query="FAA AC 20-62E parts eligibility">parts eligibility</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="search-message" class="message-line"></div>
+          <div id="pre-generated-answer-box" class="pre-generated-box hidden"></div>
+          <div id="search-output" class="search-output">
+            <div class="welcome-note">
+              <div>
+                <strong>Library index ready for query.</strong>
+                <p>Contains regulatory standards (FAA, EASA, TCCA), engineering studies (NASA metallurgy and NDT), shop safety standards, and repair practices.</p>
+              </div>
+            </div>
+          </div>
+          <div class="bottom-note">
+            <span class="note-icon">ⓘ</span> Public reference data for technical investigation. Confirm applicability in current approved manufacturer technical data before maintenance decisions.
+          </div>
+        </div>
+      </section>
+
+      <!-- GROUNDED Q&A VIEW -->
+      <section class="view" id="view-assistant">
+        <div class="content-wrap assistant-wrap">
+          <div class="assistant-header">
+            <div>
+              <h2>Technical reference Q&amp;A</h2>
+              <p>Passage-grounded answers generated by the local language model (qwen3.5:9b, think=off). Each citation refers directly to indexed technical excerpts below.</p>
+            </div>
+          </div>
+
+          <div class="workstream-filters" id="workstream-filters">
+            <button class="filter-btn active" data-filter="all">All Categories</button>
+            <button class="filter-btn" data-filter="Regulations">Regulations</button>
+            <button class="filter-btn" data-filter="Repair Practice">Repair Practice</button>
+            <button class="filter-btn" data-filter="Physical Science">Physical Science</button>
+            <button class="filter-btn" data-filter="Parts Knowledge">Parts Knowledge</button>
+          </div>
+
+          <div class="assistant-layout">
+            <div class="questions-column" id="assistant-questions-list">
+              <!-- Rendered dynamically -->
+            </div>
+            <div class="answer-column">
+              <div id="assistant-answer-display" class="answer-display hidden">
+                <!-- Selected answer rendered here -->
+              </div>
+              <div id="assistant-placeholder" class="answer-placeholder">
+                <div class="placeholder-icon">📖</div>
+                <strong>Select a query to view its grounded synthesis</strong>
+                <p>Displays the model answer, cited source passages, automated citation validity scores, and safety/regulatory cautions.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LIBRARY VIEW -->
+      <section class="view" id="view-library">
+        <div class="content-wrap">
+          <div class="library-header">
+            <div>
+              <h2>Document index</h2>
+              <p>Catalog of regulatory, engineering, and maintenance references in the public library.</p>
+            </div>
+            <div class="library-tools">
+              <input id="library-filter" type="search" placeholder="Filter by title, authority, tag, or filename…">
+              <span id="library-total" class="library-total">101 DOCUMENTS</span>
+            </div>
+          </div>
+
+          <div class="library-banner">
+            <span class="banner-icon">📄</span>
+            <div>
+              <strong>Access status</strong>
+              <p>Public-domain documents open directly as PDF files. Proprietary standards and distributor references link to official publisher records.</p>
+            </div>
+          </div>
+
+          <div class="library-table-wrap">
+            <table class="library-table">
+              <thead>
+                <tr>
+                  <th>DOCUMENT</th>
+                  <th>CATEGORY</th>
+                  <th>AUTHORITY / PUBLISHER</th>
+                  <th>AVAILABILITY</th>
+                  <th>ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="library-body">
+                <!-- Dynamically rendered rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <footer class="main-footer">
+        <span>HangarIndex · Maintenance Document Search</span>
+        <span>Consult approved technical data for return-to-service decisions</span>
+      </footer>
+    </main>
+  </div>
+
+  <!-- ABOUT DIALOG -->
+  <dialog id="about-dialog" class="about-dialog">
+    <button class="dialog-close" id="dialog-close-btn" aria-label="Close dialog">&times;</button>
+    <div class="dialog-brand">HANGARINDEX TECHNICAL ARCHITECTURE</div>
+    <h2>Document search index</h2>
+    <p>Browser-based search over public aerospace maintenance standards, regulations, and technical studies using a client-side inverted index.</p>
+    
+    <div class="dialog-facts">
+      <div>
+        <span>PASSAGES</span>
+        <strong>16,850 indexed</strong>
+      </div>
+      <div>
+        <span>RETRIEVAL</span>
+        <strong>Lexical MiniSearch</strong>
+      </div>
+      <div>
+        <span>GROUNDING</span>
+        <strong>Direct citations</strong>
+      </div>
+    </div>
+
+    <p style="font-size:12px;color:#5a6e78;line-height:1.5;">
+      In local operation, HangarIndex connects to private local language models (qwen3.5:9b, 35b-a3b) with thinking disabled to generate synthesised answers with automated citation verification.
+    </p>
+  </dialog>
+
+  <!-- Vendored MiniSearch & Application JS -->
+  <script src="vendor/minisearch.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
