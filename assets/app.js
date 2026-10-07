@@ -474,7 +474,7 @@
       const viewEl = document.getElementById(`view-${targetView}`);
       if (viewEl) viewEl.classList.add('active');
 
-      dom.breadcrumbCurrent.textContent = targetView === 'search' ? 'SEARCH' : (targetView === 'assistant' ? 'REFERENCE Q&A' : 'DOCUMENT INDEX');
+      dom.breadcrumbCurrent.textContent = ({ask: 'ASK', search: 'SEARCH', assistant: 'REFERENCE Q&A'})[targetView] || 'DOCUMENT INDEX';
       window.scrollTo(0, 0);
     });
   });
@@ -640,7 +640,8 @@
 
   // Boot
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
+    window.HangarHighlight = highlightTerms;
+  document.addEventListener('DOMContentLoaded', initApp);
   } else {
     initApp();
   }
