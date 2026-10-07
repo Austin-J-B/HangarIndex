@@ -31,3 +31,91 @@
 .passage-match{background:#f3e4a4;color:#354248;border-radius:2px;padding:0 1px}.result-passage{margin-top:12px}.result-passage .result-excerpt{margin:0}.passage-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:5px 0 0 12px;color:#829095;font-size:8px}.open-source{border:0;background:transparent;color:#50766d;font:600 9px var(--sans);cursor:pointer;padding:2px 0;text-decoration:none}.open-source:hover{color:#294d43;text-decoration:underline}.open-source:disabled{opacity:.55;cursor:wait}.source-chip{align-items:flex-start}.source-chip-content{min-width:0;flex:1}.source-actions{margin-top:6px}.source-excerpt{white-space:pre-wrap;overflow-wrap:anywhere}
 .uncited-sentence{background:#fff4e9;border-bottom:1px dashed #bd8350;border-radius:2px;padding:1px 2px}.uncited-label{display:inline-block;margin-right:4px;color:#9a5f35;font:700 8px var(--sans);letter-spacing:.25px;text-transform:uppercase}
 .answer-mode-control{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 8px}.answer-mode-copy{display:grid;gap:3px;color:#81908f;font-size:9px}.answer-mode-label{font-size:8px;letter-spacing:.9px;font-weight:750;color:#697c7d}.answer-mode-toggle{display:inline-flex;gap:2px;padding:3px;border:1px solid #dfe5df;border-radius:6px;background:#eef1ed}.answer-mode-option{min-height:28px;padding:0 12px;border:0;border-radius:4px;background:transparent;color:#68797c;font:600 9px var(--sans);cursor:pointer}.answer-mode-option:hover{color:#304b58;background:#e2e8e2}.answer-mode-option.selected{background:#20394a;color:#fff;box-shadow:0 1px 2px #101f2e22}.answer-mode-option:focus-visible{outline:2px solid #789e8c;outline-offset:2px}
+
+@media(max-width:440px){
+  .sidebar{display:block;padding:12px 14px 8px}
+  .brand{margin:0 0 10px}
+  .primary-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-column:auto;grid-row:auto;overflow:visible;gap:4px}
+  .nav-item{height:auto;min-height:38px;justify-content:center;gap:5px;padding:5px 4px;font-size:9px;white-space:normal}
+  .nav-item span:last-of-type{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .nav-icon{flex:none;width:15px;font-size:14px}
+  .topbar{padding:0 12px;gap:8px}
+  .breadcrumbs{min-width:0;flex:1;font-size:7px;letter-spacing:.45px;gap:4px}
+  .breadcrumbs span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar-right{min-width:0;max-width:47%;flex:none;gap:4px}
+  #model-label{min-width:0;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .content-wrap{padding:22px 13px 18px}
+  .hero-copy h1{font-size:25px;line-height:1.22}
+  .hero-copy>p{font-size:12px;line-height:1.55}
+  .search-panel{padding:11px 10px}
+  .search-symbol{font-size:20px;margin-right:6px}
+  .search-button{padding:0 9px;font-size:10px}
+  .suggestion-label{display:none}
+  .suggestion-chips{display:flex;flex-wrap:wrap;width:100%;gap:5px}
+  .suggestion-chips button{min-height:30px;font-size:9px}
+  .result-card{padding:11px}
+  .result-excerpt{font-size:11.5px;line-height:1.6;overflow-wrap:anywhere}
+  .passage-footer{margin-left:0;flex-wrap:wrap}
+  .assistant-heading,.library-heading{gap:8px}
+  .assistant-heading h1,.library-heading h1{font-size:29px}
+  .assistant-heading p,.library-heading p{font-size:10px;line-height:1.45}
+  .answer-mode-control{align-items:flex-start;flex-wrap:wrap}
+  .answer-mode-option{padding:0 9px}
+  .assistant-callout{gap:8px;padding:11px}
+  .chat-thread{padding-left:0;padding-right:0}
+  .ask-form-footer{gap:8px}
+  .ask-form-footer span{max-width:58%;font-size:8px}
+  .ask-form-footer button{min-width:104px;padding:0 8px}
+  .library-tools{display:flex;gap:6px}
+  .library-tools input{min-width:0}
+  .library-tools button{flex:none}
+  .library-table-wrap{overflow-x:auto}
+  .result-location{white-space:normal;overflow-wrap:anywhere}
+}
+
+@media(max-width:440px){
+  .brand{min-height:44px}
+  .brand small{font-size:12px}
+  .nav-item{min-height:44px;flex-direction:column;gap:2px;padding:4px;font-size:12px}
+  .nav-icon svg{width:15px;height:15px}
+  .topbar{height:auto;min-height:48px}
+  .breadcrumbs{font-size:12px;letter-spacing:.3px}
+  .breadcrumbs span:first-child{display:none}
+  .topbar-right{font-size:12px}
+  #model-label{font-size:12px;max-width:112px}
+  .help-button{width:44px;height:44px;min-width:44px;font-size:16px}
+  .search-mode,.search-bottom,.message-line,.results-heading span,.result-meta,.result-location,
+  .passage-footer,.regulatory-band,.page-kicker,.model-chip,.assistant-callout,
+  .message-author,.message-author small,.assistant-welcome-card p,.assistant-heading p,
+  .library-heading p,.library-total,.library-banner,.library-endnote,.main-footer,
+  .assistant-footnote,.ask-form-footer span{font-size:12px}
+  .search-row{height:52px}
+  .search-row input,#ask-question,.library-tools input{font-size:16px}
+  .search-button,.suggestion-chips button,.filter-toggle,.copy-path,.open-source,
+  .prompt-examples button,.answer-mode-option,.ask-form-footer button,
+  .library-tools button,#refresh-library,.dialog-close{min-height:44px;font-size:12px}
+  .search-button{height:44px;padding:0 10px}
+  .suggestion-chips button{padding:6px 9px}
+  .type-tag{max-width:100%;white-space:normal;font-size:12px}
+  .result-excerpt{font-size:12px}
+  .copy-path{align-self:flex-start}
+  .open-source{display:inline-flex;align-items:center}
+  .answer-mode-copy,.answer-mode-label{font-size:12px}
+  .answer-mode-option{padding:4px 8px;white-space:normal}
+  .prompt-examples button{padding:6px 9px}
+  .ask-form-footer button{padding:0 10px}
+  .library-tools input,#library-filter{min-height:44px}
+  .library-tools button,#refresh-library{padding:0 10px}
+  .dialog-close{width:44px;height:44px}
+  .welcome-note strong,.welcome-note p,.bottom-note,.no-results,.regulatory-band span:last-child,
+  .assistant-callout p,.library-banner strong,.library-banner p,.about-dialog p,
+  .dialog-facts,.dialog-facts span,.dialog-small,.dialog-brand,.toast,
+  .library-table th,.library-table td,.library-table .empty-table{font-size:12px}
+}
+
+@media(max-width:440px){
+  .eyebrow,.search-bottom kbd,.suggestion-label,.regulatory-band strong,
+  .assistant-callout strong,.user-bubble,.inline-citation,.answer-sources>strong,
+  .source-id,.source-chip strong,.source-chip small,.source-excerpt,.answer-error,
+  .reg-ref-box>strong,.reg-ref-box div,.dialog-brand,.uncited-label{font-size:12px}
+}

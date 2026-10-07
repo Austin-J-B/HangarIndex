@@ -2,7 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 let currentDocuments = [];
 let onlyRegulatory = false;
-let answerMode = 'quick';
+let answerMode = 'thorough';
 let toastTimer;
 
 function setAnswerMode(mode) {
@@ -14,24 +14,54 @@ function setAnswerMode(mode) {
     button.setAttribute('aria-pressed', String(selected));
   });
   $('#answer-mode-note').textContent = mode === 'thorough'
-    ? 'qwen3.5:35b-a3b · larger model'
-    : 'qwen3.5:4b · preloaded';
+    ? 'qwen3.5:35b-a3b · default'
+    : 'qwen3.5:4b · less reliable';
 }
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function highlightText(value, terms = []) {
+const HL_STOP = new Set(('a an the and or but if of in on at to for from by with without into onto over under is are was were be been being do does did can could may might must shall should will would i we you he she it they this that these those what which who whom how when where why there here as not no yes my our your their its about after before than then so such per via any all each other more most some only also just up out off down vs etc using use used work working need needed want please tell show find give get under').split(' '));
+function hlStem(word) {
+  let value = word.toLowerCase();
+  if (value.length > 5 && value.endsWith('ies')) return value.slice(0, -3) + 'y';
+  for (const suffix of ['ations', 'ation', 'ings', 'ing', 'ions', 'ion', 'ives', 'ive', 'edly', 'ed', 'es', 'ly', 's']) {
+    if (value.length - suffix.length >= 4 && value.endsWith(suffix)) return value.slice(0, -suffix.length);
+  }
+  return value;
+}
+function hlSame(a, b) {
+  if (a === b) return true;
+  return a.length >= 5 && b.length >= 5 && a.slice(0, 5) === b.slice(0, 5);
+}
+function highlightText(value, terms = [], maxMarks = 8) {
   const text = String(value ?? '');
-  const wanted = new Set((terms || []).map((term) => String(term).toLowerCase()));
-  if (!wanted.size) return escapeHtml(text);
-  const tokenPattern = /[\p{L}\p{N}_]+(?:[-./][\p{L}\p{N}_]+)*/gu;
+  const words = [];
+  for (const term of (terms || [])) {
+    for (const word of String(term).toLowerCase().match(/[\p{L}\p{N}]+(?:\.[\p{L}\p{N}]+)*/gu) || []) words.push(word);
+  }
+  const content = [...new Set(words.filter((word) => !HL_STOP.has(word) && (word.length >= 3 || /\d/.test(word))))];
+  if (!content.length) return escapeHtml(text);
+
+  const queryStems = content.map(hlStem);
+  const tokens = [...text.matchAll(/[\p{L}\p{N}]+(?:\.[\p{L}\p{N}]+)*/gu)]
+    .map((match) => ({start: match.index, end: match.index + match[0].length, stem: hlStem(match[0])}));
+  const hitIndexes = tokens.map((token) => queryStems.findIndex((queryStem) => hlSame(queryStem, token.stem)));
+  const spans = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (hitIndexes[i] < 0) continue;
+    let j = i;
+    while (j + 1 < tokens.length && hitIndexes[j + 1] >= 0 && hitIndexes[j + 1] !== hitIndexes[j] && /^[\s\-\/]{1,3}$/.test(text.slice(tokens[j].end, tokens[j + 1].start))) j++;
+    spans.push({start: tokens[i].start, end: tokens[j].end, size: j - i + 1, length: tokens[j].end - tokens[i].start});
+    i = j;
+  }
+
+  // Prefer matched phrases, then longer terms; render at most eight marks per passage.
+  const chosen = spans.sort((a, b) => b.size - a.size || b.length - a.length).slice(0, maxMarks).sort((a, b) => a.start - b.start);
   let html = ''; let cursor = 0;
-  for (const match of text.matchAll(tokenPattern)) {
-    if (!wanted.has(match[0].toLowerCase())) continue;
-    html += escapeHtml(text.slice(cursor, match.index));
-    html += `<mark class="passage-match">${escapeHtml(match[0])}</mark>`;
-    cursor = match.index + match[0].length;
+  for (const span of chosen) {
+    html += escapeHtml(text.slice(cursor, span.start)) + `<mark class="passage-match">${escapeHtml(text.slice(span.start, span.end))}</mark>`;
+    cursor = span.end;
   }
   return html + escapeHtml(text.slice(cursor));
 }
@@ -160,14 +190,31 @@ async function search() {
   } catch (error) { $('#search-output').innerHTML = `<div class="no-results">${escapeHtml(error.message)}</div>`; }
   finally { $('#search-button').disabled = false; $('#search-button').innerHTML = 'Search <span>↗</span>'; }
 }
+const answerAbbreviation = /\b(?:u\.s|u\.k|e\.u|u\.n|e\.g|i\.e|etc|vs|no|figs?|sec|ch|para|pp|p|rev|vol|ed|inc|ltd|dr|mr|mrs|ms|st|jr|sr|approx)\./gi;
+function splitAnswerSentences(text) {
+  const marker = '\uE000';
+  const listMarker = '\uE001';
+  let protectedText = text.replace(answerAbbreviation, (abbreviation) => abbreviation.replace(/\./g, marker));
+  protectedText = protectedText.replace(/^([ \t]*\d{1,3})\.(?=[ \t\r\n])/gm, `$1${listMarker}`);
+  protectedText = protectedText.replace(/([.!?])([ \t]+)((?:\[(?:S\d+)(?:[ \t]*[,;][ \t]*S\d+)*\][ \t]*)+)(?=\S)/g, '$1$2$3\n');
+  const output = [];
+  for (const rawSentence of protectedText.split(/(?<=[.!?])\s+|\n+/)) {
+    const sentence = rawSentence.replaceAll(marker, '.').replaceAll(listMarker, '.').trim();
+    if (!sentence || /^\d{1,3}\.$/.test(sentence)) continue;
+    if (/^(?:\[S\d+(?:\s*[,;]\s*S\d+)*\]\s*)+$/.test(sentence) && output.length) {
+      output[output.length - 1] = `${output[output.length - 1].trimEnd()} ${sentence}`;
+    } else output.push(sentence);
+  }
+  return output;
+}
 function formatAnswer(text, citationCheck) {
   const flags = new Map((citationCheck?.uncited_sentences || []).map((item) => [item.index, item]));
   let sentenceIndex = 0;
   return String(text).split(/\n{2,}/).map((paragraph) => {
-    const sentences = paragraph.split(/(?<=[.!?])\s+|\n+/).filter((sentence) => sentence.trim());
+    const sentences = splitAnswerSentences(paragraph);
     const rendered = sentences.map((sentence) => {
       const flag = flags.get(sentenceIndex++);
-      let html = escapeHtml(sentence).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\[(S\d+)\]/g,'<span class="inline-citation">[$1]</span>');
+      let html = escapeHtml(sentence).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\[((?:S\d+)(?:\s*[,;]\s*S\d+)*)\]/g,'<span class="inline-citation">[$1]</span>');
       if (flag) {
         const label = flag.reason === 'unknown_source_id' ? 'Check source ID' : 'Uncited';
         html = `<span class="uncited-sentence"><small class="uncited-label">${label}</small>${html}</span>`;
@@ -224,6 +271,7 @@ async function askQuestion(question) {
     } else if (event.type === 'done') {
       completed = true;
       if (answerBody) {
+        if (typeof event.answer === 'string') streamedAnswer = event.answer;
         answerBody.style.whiteSpace = '';
         answerBody.innerHTML = formatAnswer(streamedAnswer, event.citation_check);
         const author = answerBody.closest('.chat-turn')?.querySelector('.message-author small');

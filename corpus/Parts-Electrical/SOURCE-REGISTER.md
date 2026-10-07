@@ -1,0 +1,61 @@
+# Source Register — `corpus/Parts-Electrical/`
+
+Verified public-source collection gathered on 2026-10-07 per HangarIndex expansion plan.
+Every document includes official URL, SHA-256 hash, authority/educational/research/supplier taxonomy tag, legal license, and redistribution flag.
+
+| Local file | Tag | Authority / Origin | Official Source | SHA-256 | License / Status | Redistribute | Scope & Coverage |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `FAA_AC_25.1701-1_EWIS_Certification.pdf` | `authority` | FAA (USA) | [FAA AC 25.1701-1: Certification of Electrical Wiring Interconnection Systems on Transport Category Airplanes](https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_25_1701-1.pdf) | `8e8c3cbd9467…` | US Government Work (Public Domain) | `yes` | EWIS certification guidance: wire selection, separation, splices, clamping, labelling, circuit protection (Part 25 subpart H). |
+| `FAA_AC_25-27A_EWIS_ICA_EZAP.pdf` | `authority` | FAA (USA) | [FAA AC 25-27A: Development of Transport Category Airplane EWIS Instructions for Continued Airworthiness Using an Enhanced Zonal Analysis Procedure](https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_25-27A.pdf) | `3151681c82a1…` | US Government Work (Public Domain) | `yes` | EWIS inspection tasks, EZAP, wiring contamination and protection practices for maintenance programs. |
+| `FAA_AC_120-102A_Incorporation_of_EWIS_ICA.pdf` | `authority` | FAA (USA) | [FAA AC 120-102A: Incorporation of Electrical Wiring Interconnection Systems Instructions for Continued Airworthiness into Operators' Maintenance Programs](https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-102A.pdf) | `17cfcf61f864…` | US Government Work (Public Domain) | `yes` | How operators fold EWIS ICA into maintenance programs; wiring inspection and repair expectations. |
+| `FAA_AC_25.1353-1A_Electrical_Equipment_and_Installations.pdf` | `authority` | FAA (USA) | [FAA AC 25.1353-1A: Electrical Equipment and Installations](https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_25.1353-1A.pdf) | `9bec7b6ea0be…` | US Government Work (Public Domain) | `yes` | Electrical equipment installation, wire and cable routing, separation, batteries. |
+| `FAA_AC_25.1357-1A_Circuit_Protective_Devices.pdf` | `authority` | FAA (USA) | [FAA AC 25.1357-1A: Circuit Protective Devices](https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_25.1357-1A.pdf) | `75c948d721be…` | US Government Work (Public Domain) | `yes` | Circuit breakers, fuses and wire protection sizing; resetting cautions. |
+| `FAA_AC_25.1360-1_Protection_Against_Injury.pdf` | `authority` | FAA (USA) | [FAA AC 25.1360-1: Protection Against Injury](https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_25.1360-1.pdf) | `bf629f01b5b8…` | US Government Work (Public Domain) | `yes` | Electrical shock and burn protection for equipment and installations. |
+| `FAA_AC_20-158A_HIRF_Electrical_Electronic_Systems.pdf` | `authority` | FAA (USA) | [FAA AC 20-158A: The Certification of Aircraft Electrical and Electronic Systems for Operation in the High-Intensity Radiated Fields (HIRF) Environment](https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_20-158A.pdf) | `5e35ace169aa…` | US Government Work (Public Domain) | `yes` | HIRF protection, shielding and bonding for electrical/electronic systems. |
+| `FAA_AC_20-74_Position_and_Anticollision_Light_Measurements.pdf` | `authority` | FAA (USA) | [FAA AC 20-74: Aircraft Position and Anticollision Light Measurements](https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_20-74.pdf) | `32b004ae7152…` | US Government Work (Public Domain) | `yes` | Photometric measurement of position/anticollision lights (intensity, coverage angles). 1971 scan; text extraction is poor. |
+| `FAA-H-8083-32B_AMT_Powerplant_Ch4_Ignition_and_Electrical.pdf` | `educational` | FAA (USA) | [FAA AMT Handbook Powerplant, Chapter 4: Engine Ignition and Electrical Systems](https://www.faa.gov/sites/faa.gov/files/06_amtp_ch4.pdf) | `c3320ebe06cd…` | US Government Work (Public Domain) | `yes` | Turbine ignition exciters (capacitor discharge), igniter plugs, ignition leads, inspection and safety cautions. |
+| `FAA-H-8083-31A_AMT_Airframe_Handbook_Vol2.pdf` | `educational` | FAA (USA) | [FAA-H-8083-31A AMT Handbook Airframe Volume 2 (aircraft electrical system, lighting, wiring practices)](https://www.faa.gov/sites/faa.gov/files/2022-06/amt_airframe_hb_vol_2.pdf) | `dc9559448b76…` | US Government Work (Public Domain) | `yes` | Aircraft electrical systems, wiring installation and repair, splicing, lighting systems including landing and position lights. |
+| `JPE_Rollout_Jan_2025_Press_Release.pdf` | `supplier` | Jet Parts Engineering (Seattle, WA) | [JPE Rollout January 2025 press release (PMA parts and DER repairs)](https://www.jetpartsengineering.com/documents/Rollout-Jan-2025-Press-Release.pdf) | `bf35f81c18cf…` | Public commercial web content; JPE copyright | `link-only` | Newly approved PMA parts and DER repairs with part numbers and platforms. |
+| `JPE_Rollout_Q4_2024_Press_Release.pdf` | `supplier` | Jet Parts Engineering (Seattle, WA) | [JPE Rollout Q4 2024 press release (PMA parts and DER repairs)](https://www.jetpartsengineering.com/documents/Rollout-Q4-2024-Press-Release.pdf) | `4353d93a67d2…` | Public commercial web content; JPE copyright | `link-only` | Newly approved PMA parts and DER repairs with part numbers and platforms. |
+| `JPE_18_New_PMA_Parts_and_5_DER_Repairs.html` | `supplier` | Jet Parts Engineering (Seattle, WA) | [JPE announcement: 18 new PMA parts and 5 DER repairs](https://www.jetpartsengineering.com/18-new-pma-parts-and-5-der-repairs) | `7b7d7cdcb6eb…` | Public commercial web content; JPE copyright | `link-only` | Part numbers, platforms and DER repair scope. |
+| `ACP_DER_Repair_516345-1.html` | `supplier` | Airline Component Parts / JPE (Fort Worth, TX) | [ACP DER repair 516345-1 (ignition exciter)](https://www.jetpartsengineering.com/acp/der-repair-516345-1) | `af357200e7c1…` | Public commercial web content; JPE copyright | `link-only` | ACP DER repair catalog page: ignition exciter P/N 516345-1 (thin page: title, P/N, catalog navigation). |
+| `ACP_DER_Repair_4954302.html` | `supplier` | Airline Component Parts / JPE (Fort Worth, TX) | [ACP DER repair 4954302](https://www.jetpartsengineering.com/acp/der-repair-4954302) | `ce9c8800db88…` | Public commercial web content; JPE copyright | `link-only` | ACP DER repair catalog page: ignition exciter P/N 4954302 (thin page). |
+| `ACP_Repair_3888058-4.html` | `supplier` | Airline Component Parts / JPE (Fort Worth, TX) | [ACP repair 3888058-4](https://www.jetpartsengineering.com/acp/repair-3888058-4) | `976b63829cc5…` | Public commercial web content; JPE copyright | `link-only` | ACP repair catalog page: ignition exciter P/N 3888058-4 (thin page). |
+| `ACP_DER_Repair_10-617075-6.html` | `supplier` | Airline Component Parts / JPE (Fort Worth, TX) | [ACP DER repair 10-617075-6](https://www.jetpartsengineering.com/acp/der-repair-10-617075-6) | `0940a4c6afc2…` | Public commercial web content; JPE copyright | `link-only` | ACP DER repair catalog page: exciter P/N 10-617075-6 (thin page). |
+| `JPE_15_New_PMA_Parts_Announcement.html` | `supplier` | Jet Parts Engineering (Seattle, WA) | [JPE announcement: FAA approval of 15 new PMA parts](https://www.jetpartsengineering.com/press-releases/jpe-announces-approval-of-15-new-pma-parts) | `de70440184b5…` | Public commercial web content; JPE copyright | `link-only` | Part numbers and platforms for new PMA parts. |
+| `JPE_ACP_Additional_Repair_Station_Rating.html` | `supplier` | Jet Parts Engineering / ACP | [JPE announces additional repair station rating for Airline Component Parts (ACP)](https://www.jetpartsengineering.com/additional-repair-station-rating-acp) | `0504ba7ce011…` | Public commercial web content; JPE copyright | `link-only` | ACP Part 145 rating expansion. |
+| `JPE_Assembly_HC572H1003_Landing_Light_Series.html` | `supplier` | Jet Parts Engineering (Seattle, WA) | [JPE assembly parts list: HC572H1003-00 series](https://www.jetpartsengineering.com/assembly-hc572h1003-00series) | `c4c5b205ab62…` | Public commercial web content; JPE copyright | `link-only` | Parts list: PMA landing light covers APMHC572H1477-000/-001 (OEM HC572H1477), ATA 57. |
+| `JPE_Assembly_HAD19412_Harness_and_Box.html` | `supplier` | Jet Parts Engineering (Seattle, WA) | [JPE assembly parts list: HAD19412 harness and box assembly](https://www.jetpartsengineering.com/assembly-had19412-harness-and-box-assy) | `fd59d3dd98d7…` | Public commercial web content; JPE copyright | `link-only` | Parts list for HAD19412 harness and box assembly: PMA stud assemblies HAB18619-xx, ATA 77. |
+
+## Checksums and Verification
+
+| Filename | Full SHA-256 Checksum | Size (Bytes) |
+| --- | --- | --- |
+| `FAA_AC_25.1701-1_EWIS_Certification.pdf` | `8e8c3cbd94674d48c767823b49cae2c0b8d9ff88e827265e3de4c994f00fdb15` | 568,948 |
+| `FAA_AC_25-27A_EWIS_ICA_EZAP.pdf` | `3151681c82a1c4a569dd0dd8ef03a9f4b357c0be5edbfae4f6cb2cb75736c1ff` | 5,329,052 |
+| `FAA_AC_120-102A_Incorporation_of_EWIS_ICA.pdf` | `17cfcf61f86453de82b8eb372d1e54d588c41edc694db28cdcc8c6ef3dbe2921` | 344,095 |
+| `FAA_AC_25.1353-1A_Electrical_Equipment_and_Installations.pdf` | `9bec7b6ea0be707362749d8ef362ed56ef597e303fa51289fb9c3d8080d6e4bc` | 83,319 |
+| `FAA_AC_25.1357-1A_Circuit_Protective_Devices.pdf` | `75c948d721be1845ab3e0e609a45209cf11a273b21d568bd06ed52878f4300b9` | 562,237 |
+| `FAA_AC_25.1360-1_Protection_Against_Injury.pdf` | `bf629f01b5b87bac9748c1ef70e2c6a9c8662f02e28cc3309d1ac0ae9bec64b8` | 74,223 |
+| `FAA_AC_20-158A_HIRF_Electrical_Electronic_Systems.pdf` | `5e35ace169aa2f07120f3b12b0472a2dcee8b142bd474ed6db82d71d649742b3` | 362,753 |
+| `FAA_AC_20-74_Position_and_Anticollision_Light_Measurements.pdf` | `32b004ae71521b87e3077e89546369335d67cdf893c35f47ad8fa9a92a40c88c` | 1,957,632 |
+| `FAA-H-8083-32B_AMT_Powerplant_Ch4_Ignition_and_Electrical.pdf` | `c3320ebe06cd46dc336d0d79d9a277f29c83c1e01e519c8be693552eee433342` | 24,496,929 |
+| `FAA-H-8083-31A_AMT_Airframe_Handbook_Vol2.pdf` | `dc9559448b766afd6efbd8f2b58bfbcec2f4378966703d4d9489741e558ca989` | 97,921,787 |
+| `JPE_Rollout_Jan_2025_Press_Release.pdf` | `bf35f81c18cfa8feafe7897648b5e3fb4fc4fa3a0c857c518099178beeda830e` | 127,905 |
+| `JPE_Rollout_Q4_2024_Press_Release.pdf` | `4353d93a67d267cbfef48296edba2aea1006b21ff481c9b028ce2d56ac3277fd` | 133,636 |
+| `JPE_18_New_PMA_Parts_and_5_DER_Repairs.html` | `7b7d7cdcb6eb062c7566c440ef4bc3adf4d0d78fee3bf56e099b31baa6545b34` | 14,954 |
+| `ACP_DER_Repair_516345-1.html` | `af357200e7c1dc5879c12da7620c45365cc95685b34338a8789264fa4c453585` | 19,021 |
+| `ACP_DER_Repair_4954302.html` | `ce9c8800db88c1c9920c5730bb9acf22d289ceced284fbab77fdbdbd51c56385` | 20,283 |
+| `ACP_Repair_3888058-4.html` | `976b63829cc550fb1e86ffc10a3131d4eab7cf7779cac1a55ff2b586efb54bf1` | 25,077 |
+| `ACP_DER_Repair_10-617075-6.html` | `0940a4c6afc28f25feac012a65407a148e7d77b9945becd59523bd7d7b56c038` | 20,132 |
+| `JPE_15_New_PMA_Parts_Announcement.html` | `de70440184b559d44ed8cd6e805569fd296f0d69a9cc149362b64ca7b896fa47` | 13,083 |
+| `JPE_ACP_Additional_Repair_Station_Rating.html` | `0504ba7ce0117fc11ef7e94457c2c3d1a284308e65a438f58bc20a05f6ef5571` | 11,677 |
+| `JPE_Assembly_HC572H1003_Landing_Light_Series.html` | `c4c5b205ab62e1d8e8bc5291cec37fb5801727cf16b64a5c346144b0c224f171` | 12,305 |
+| `JPE_Assembly_HAD19412_Harness_and_Box.html` | `fd59d3dd98d7044d5d7fbac57cd94a052000310c9a194f204320eda6e7f46d57` | 13,871 |
+
+## Usage & Citation Caution
+
+- Documents tagged `authority` represent binding rules or official advisory material within their specified jurisdiction.
+- Documents tagged `research` represent scientific reports and metallurgical studies; cite as research context, not task-specific repair instructions.
+- Documents tagged `supplier` represent commercial and technical marketing data; they provide valuable part numbers and repair capabilities but do not supersede OEM CMMs or approved data for aircraft installation.
+- The documents are kept locally on disk and excluded from git tracking by `.gitignore` (`corpus/**`). Only this `SOURCE-REGISTER.md` is committed.
