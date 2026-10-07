@@ -87,36 +87,44 @@
     return a < b ? a : b;
   }
 
-  function highlightTerms(snippet, queryTerms) {
-    if (!queryTerms || queryTerms.length === 0) return escapeHtml(snippet);
-
-    const validTerms = queryTerms
-      .map(t => t.trim())
-      .filter(t => t.length >= 2)
-      .sort((a, b) => b.length - a.length);
-
-    if (validTerms.length === 0) return escapeHtml(snippet);
-
-    const escapedTerms = validTerms.map(escapeRegExp);
-    const regex = new RegExp(`\\b(${escapedTerms.join('|')})`, 'gi');
-
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = regex.exec(snippet)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(escapeHtml(snippet.slice(lastIndex, match.index)));
-      }
-      parts.push(`<mark class="passage-match">${escapeHtml(match[0])}</mark>`);
-      lastIndex = regex.lastIndex;
+  const HL_STOP = new Set(('a an the and or but if of in on at to for from by with without into onto over under is are was were be been being do does did can could may might must shall should will would i we you he she it they this that these those what which who whom how when where why there here as not no yes my our your their its about after before than then so such per via any all each other more most some only also just up out off down vs etc using use used work working need needed want please tell show find give get under').split(' '));
+  function hlStem(w) {
+    w = w.toLowerCase();
+    if (w.length > 5 && w.endsWith('ies')) return w.slice(0, -3) + 'y';
+    for (const suf of ['ations', 'ation', 'ings', 'ing', 'ions', 'ion', 'ives', 'ive', 'edly', 'ed', 'es', 'ly', 's']) {
+      if (w.length - suf.length >= 4 && w.endsWith(suf)) return w.slice(0, -suf.length);
     }
-
-    if (lastIndex < snippet.length) {
-      parts.push(escapeHtml(snippet.slice(lastIndex)));
+    return w;
+  }
+  function hlSame(a, b) {
+    if (a === b) return true;
+    return a.length >= 5 && b.length >= 5 && a.slice(0, 5) === b.slice(0, 5);
+  }
+  function highlightTerms(snippet, queryTerms, maxMarks = 8) {
+    const text = String(snippet ?? '');
+    const words = [];
+    for (const t of (queryTerms || [])) for (const w of String(t).toLowerCase().match(/[\p{L}\p{N}]+(?:\.[\p{L}\p{N}]+)*/gu) || []) words.push(w);
+    const content = [...new Set(words.filter(w => !HL_STOP.has(w) && (w.length >= 3 || /\d/.test(w))))];
+    if (!content.length) return escapeHtml(text);
+    const qStems = content.map(hlStem);
+    const tokens = [...text.matchAll(/[\p{L}\p{N}]+(?:\.[\p{L}\p{N}]+)*/gu)].map(m => ({start: m.index, end: m.index + m[0].length, stem: hlStem(m[0])}));
+    const hitIdx = tokens.map(t => qStems.findIndex(q => hlSame(q, t.stem)));
+    const spans = [];
+    for (let i = 0; i < tokens.length; i++) {
+      if (hitIdx[i] < 0) continue;
+      let j = i;
+      while (j + 1 < tokens.length && hitIdx[j + 1] >= 0 && hitIdx[j + 1] !== hitIdx[j] && /^[\s\-\/]{1,3}$/.test(text.slice(tokens[j].end, tokens[j + 1].start))) j++;
+      spans.push({start: tokens[i].start, end: tokens[j].end, size: j - i + 1, len: tokens[j].end - tokens[i].start});
+      i = j;
     }
-
-    return parts.join('');
+    // Phrases first, then longer (more specific) single terms; keep at most maxMarks, render in text order.
+    const chosen = spans.sort((a, b) => b.size - a.size || b.len - a.len).slice(0, maxMarks).sort((a, b) => a.start - b.start);
+    let html = '', cursor = 0;
+    for (const s of chosen) {
+      html += escapeHtml(text.slice(cursor, s.start)) + `<mark class="passage-match">${escapeHtml(text.slice(s.start, s.end))}</mark>`;
+      cursor = s.end;
+    }
+    return html + escapeHtml(text.slice(cursor));
   }
 
   function handleSearch(query) {
