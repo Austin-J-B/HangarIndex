@@ -70,6 +70,7 @@
               <div><h1>Ask the library</h1><p>Answers are written from the documents below each answer, with every statement linked to its source.</p></div>
               <span id="ask-status" data-state="offline"><span>Saved answers only</span></span>
             </div>
+            <label class="ask-category">Category<select id="ask-category"><option>All</option><option>Engineering and repair</option><option>Regulations</option><option>Business and finance</option></select></label>
             <form id="ask-form" autocomplete="off">
               <textarea id="ask-input" rows="2" maxlength="2000" placeholder="Ask a question in plain words, e.g. can I use acid stripper on a steel bracket?" aria-label="Your question"></textarea>
               <button id="ask-submit" type="submit">Ask</button>
@@ -107,6 +108,7 @@
               <input id="search-query" type="search" autocomplete="off" placeholder="Search by keyword, CFR part, material, or repair method (e.g. 'alodine aluminum', '14 CFR 43.13')…">
               <button id="search-button" class="search-button">Search</button>
             </div>
+            <label class="category-picker">Category<select id="search-category"><option>All</option><option>Engineering and repair</option><option>Regulations</option><option>Business and finance</option></select></label>
             <div class="search-bottom">
               <span><kbd>ENTER</kbd> or type to search</span>
               <div class="suggestion-label">Sample queries</div>
@@ -153,6 +155,7 @@
             <button class="filter-btn" data-filter="Physical Science">Physical Science</button>
             <button class="filter-btn" data-filter="Parts Knowledge">Parts Knowledge</button>
           </div>
+          <label class="category-picker">Category<select id="assistant-category"><option>All</option><option>Engineering and repair</option><option>Regulations</option><option>Business and finance</option></select></label>
 
           <div class="assistant-layout">
             <div class="questions-column" id="assistant-questions-list">
@@ -163,7 +166,7 @@
                 <!-- Selected answer rendered here -->
               </div>
               <div id="assistant-placeholder" class="answer-placeholder">
-                <div class="placeholder-icon">📖</div>
+                <div class="placeholder-icon">SOURCE</div>
                 <strong>Select a query to view its grounded synthesis</strong>
                 <p>Displays the model answer, cited source passages, automated citation validity scores, and safety/regulatory cautions.</p>
               </div>

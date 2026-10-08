@@ -6,6 +6,7 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   const highlight = (text, terms) => (window.HangarHighlight ? window.HangarHighlight(text, terms) : esc(text));
+  const centerExcerpt = (text, terms) => (window.HangarCenteredExcerpt ? window.HangarCenteredExcerpt(text, terms) : String(text ?? ''));
   const store = {
     get() { try { return localStorage.getItem(CODE_KEY) || ''; } catch (e) { return ''; } },
     set(v) { try { v ? localStorage.setItem(CODE_KEY, v) : localStorage.removeItem(CODE_KEY); } catch (e) { /* private mode */ } },
@@ -31,14 +32,17 @@
     el.querySelector('span').textContent = text;
   }
 
+  function localPreviewApiBase() { return ''; }
+
   async function loadData() {
     const [cfg, docs, answers] = await Promise.all([
       fetch('config.json', {cache: 'no-store'}).then((r) => (r.ok ? r.json() : {})).catch(() => ({})),
       fetch('data/docs.json').then((r) => r.json()).catch(() => []),
       fetch('data/answers.json').then((r) => r.json()).catch(() => []),
     ]);
-    apiBase = String(cfg.apiBase || '').replace(/\/+$/, '');
-    if (apiBase && !/^https:\/\//i.test(apiBase)) apiBase = '';  // never send the access code over plain http
+    const previewBase = localPreviewApiBase();
+    apiBase = previewBase || String(cfg.apiBase || '').replace(/\/+$/, '');
+    if (apiBase && !previewBase && !/^https:\/\//i.test(apiBase)) apiBase = '';  // never send the access code over plain http
     (Array.isArray(docs) ? docs : docs.documents || []).forEach((d) => docsByName.set(String(d.filename).toLowerCase(), d));
     savedAnswers = Array.isArray(answers) ? answers : [];
   }
@@ -48,9 +52,24 @@
     setStatus('offline', 'Assistant offline');
     const panel = $('ask-offline');
     panel.querySelector('p').textContent = message;
-    panel.querySelector('ul').innerHTML = savedAnswers.slice(0, 12)
-      .map((a, i) => `<li><button type="button" data-saved="${i}">${esc(a.query)}</button></li>`).join('');
+    const category = $('ask-category')?.value || 'All';
+    const visibleAnswers = savedAnswers.map((a, i) => [a, i])
+      .filter(([a]) => answerHasCategory(a, category)).slice(0, 12);
+    if (!visibleAnswers.length) {
+      panel.querySelector('p').textContent = category === 'All'
+        ? 'No saved answers are available in this copy of the demo. Use Search to open matching source passages.'
+        : 'No saved answers are available in this category. Use Search to open matching source passages.';
+    }
+    panel.querySelector('ul').innerHTML = visibleAnswers
+      .map(([a, i]) => `<li><button type="button" data-saved="${i}">${esc(a.query)}</button></li>`).join('');
     panel.hidden = false;
+  }
+
+  function answerHasCategory(answer, category) {
+    return category === 'All' || (answer.sources || []).some((source) => {
+      const name = String(source.doc_name || source.filename || '').toLowerCase();
+      return docsByName.get(name)?.category === category;
+    });
   }
 
   function needCode() {
@@ -67,7 +86,8 @@
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 6000);
-      const r = await fetch(apiBase + '/api/health', {headers: authHeaders(), signal: ctrl.signal, mode: 'cors', cache: 'no-store'});
+      const r = await fetch(apiBase + '/api/health', {headers: authHeaders(), signal: ctrl.signal,
+        mode: localPreviewApiBase() ? 'same-origin' : 'cors', cache: 'no-store'});
       clearTimeout(t);
       if (r.status === 401) { needCode(); return; }
       const body = r.ok ? await r.json().catch(() => ({})) : {};
@@ -101,9 +121,16 @@
     const ids = new Map(sources.map((s) => [s.id, s]));
     const blocks = String(text).split(/\n{2,}/);
     return blocks.map((block) => {
-      let html = esc(block).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      html = html.replace(/^(#{1,3}\s*)?(Direct answer|Answer|Watch out|Also worth knowing|Where sources differ|Not covered|Where to look):?/i,
-        (_, __, h) => `<span class="ask-section">${h}</span>`);
+      const heading = block.match(/^(?:[-*+]\s+)?(?:#{1,3}\s*)?(?:\*\*)?(Direct answer|Answer|Warnings? from (?:the )?source documents?(?: on this topic)?|Watch out|Also worth knowing|Where sources differ|Not covered|Where to look)(?:\*\*)?:?(?:\*\*)?\s*/i);
+      let html = esc(block);
+      if (heading) {
+        const rawLabel = heading[1];
+        const label = /^answer$/i.test(rawLabel) ? 'Direct answer'
+          : /^warnings?/i.test(rawLabel) ? 'Warnings from the source documents on this topic'
+            : rawLabel;
+        html = `<span class="ask-section">${esc(label)}</span>` + esc(block.slice(heading[0].length));
+      }
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       html = html.replace(/\[(S\d+)\]/g, (m, id) => (ids.has(id)
         ? `<button type="button" class="ask-cite" data-cite="${id}">${id}</button>` : `<span class="ask-cite bad" title="Unknown source">${id}</span>`));
       return `<p>${html.replace(/\n/g, '<br>')}</p>`;
@@ -120,7 +147,7 @@
         : '<span class="muted">Not in public library</span>';
       return `<article class="ask-source" id="ask-src-${esc(s.id)}">
         <header><span class="ask-cite static">${esc(s.id)}</span><strong>${esc(link.label)}</strong>${s.caution_source ? '<em>Caution</em>' : ''}</header>
-        <div class="ask-excerpt">${highlight(s.excerpt || '', terms)}</div>
+        <div class="ask-excerpt">${highlight(centerExcerpt(s.excerpt || '', terms), terms)}</div>
         <footer><span>${where}${link.hosted ? '' : ' · link only'}</span>${open}</footer></article>`;
     }).join('') + '</div>';
   }
@@ -148,7 +175,9 @@
   }
 
   function answerOffline(question, turn, reason) {
-    const best = savedAnswers.map((a) => [overlap(question, a.query), a]).sort((x, y) => y[0] - x[0])[0];
+    const category = $('ask-category')?.value || 'All';
+    const best = savedAnswers.filter((a) => answerHasCategory(a, category))
+      .map((a) => [overlap(question, a.query), a]).sort((x, y) => y[0] - x[0])[0];
     const body = turn.querySelector('.ask-body');
     const meta = turn.querySelector('.ask-meta');
     if (!best || best[0] < 0.34) {
@@ -172,9 +201,9 @@
     let timeout = setTimeout(() => ctrl.abort(), 120000);
     const alive = () => { clearTimeout(timeout); timeout = setTimeout(() => ctrl.abort(), 120000); };
     const r = await fetch(apiBase + '/api/ask/stream', {
-      method: 'POST', mode: 'cors', signal: ctrl.signal,
+      method: 'POST', mode: localPreviewApiBase() ? 'same-origin' : 'cors', signal: ctrl.signal,
       headers: {'Content-Type': 'application/json', ...authHeaders()},
-      body: JSON.stringify({question}),
+      body: JSON.stringify({question, category: $('ask-category')?.value || 'All'}),
     });
     if (r.status === 401) { clearTimeout(timeout); needCode(); throw new Error('locked'); }
     if (r.status === 403) { clearTimeout(timeout); throw new Error('http 403'); }
@@ -257,6 +286,10 @@
       $('ask-input').value = b.textContent; ask(b.textContent);
     });
     $('ask-form').addEventListener('submit', (e) => { e.preventDefault(); ask($('ask-input').value); });
+    $('ask-category').addEventListener('change', () => {
+      if (!online) showOffline(apiBase ? 'The assistant server is not running right now. Saved answers from earlier runs are below.'
+        : 'This copy of the site is not connected to a live assistant. Saved answers from earlier runs are below.');
+    });
     $('ask-input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask($('ask-input').value); } });
     const code = $('ask-code');
     code.value = store.get();

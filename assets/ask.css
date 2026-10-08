@@ -8,6 +8,8 @@
 #ask-status[data-state="online"]::before{background:var(--green)}
 #ask-status[data-state="checking"]::before{background:var(--accent)}
 #ask-status[data-state="locked"]::before{background:#b4643f}
+.ask-category{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:12px;max-width:420px;margin:10px 0;color:var(--muted);font-size:13px;line-height:1.4}
+.ask-category select{width:100%;min-width:0;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:5px;background:var(--white);color:var(--ink);font:inherit}
 #ask-form{display:flex;gap:8px;align-items:flex-end;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:8px}
 #ask-input{flex:1;min-height:44px;max-height:160px;resize:vertical;border:0;outline:0;font:inherit;font-size:16px;line-height:1.45;color:var(--ink);background:transparent;padding:10px 6px}
 #ask-submit{min-height:44px;padding:0 18px;border:0;border-radius:6px;background:var(--navy);color:#fff;font:inherit;font-size:15px;font-weight:600;cursor:pointer}
@@ -44,7 +46,7 @@
 .ask-excerpt mark{background:#fbe9a8;color:inherit;padding:0 1px;border-radius:2px}
 .ask-source footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px;margin-top:8px;font-size:13px;color:var(--muted)}
 .ask-source footer a{min-height:32px;display:inline-flex;align-items:center;color:var(--navy);font-weight:600}
-@media (max-width:480px){.ask-wrap{padding:16px 16px 40px}.ask-head h1{font-size:21px}#ask-form{flex-direction:column;align-items:stretch}#ask-submit{width:100%}}
+@media (max-width:480px){.ask-wrap{padding:16px 16px 40px}.ask-head h1{font-size:21px}.ask-category{grid-template-columns:1fr;gap:4px;max-width:100%}#ask-form{flex-direction:column;align-items:stretch;min-width:0}#ask-submit{width:100%}}
 #ask-offline{margin:16px 0 0;padding:14px 16px;border:1px solid #e3d6b8;border-radius:8px;background:#fbf7ec}
 #ask-offline strong{display:block;font-size:15px;color:var(--ink);margin-bottom:2px}
 #ask-offline p{margin:0 0 10px;font-size:14px;color:#5b6670;line-height:1.5}

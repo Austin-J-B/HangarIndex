@@ -307,6 +307,9 @@ body {
   box-sizing: border-box;
 }
 
+.category-picker { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; max-width: 420px; margin: 10px 0; color: #637580; font-size: 13px; line-height: 1.4; }
+.category-picker select { width: 100%; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid #dce2e4; border-radius: 5px; background: #fff; color: #182a39; font: inherit; }
+
 .search-mode {
   display: flex;
   align-items: center;
@@ -1187,4 +1190,14 @@ body {
   .topbar-divider { display: none !important; }
   .hero-copy h1 { font-size: 20px; }
   .main-footer { flex-direction: column; gap: 6px; text-align: center; }
+  .category-picker { grid-template-columns: 1fr; gap: 4px; max-width: 100%; }
+}
+
+@media (max-width: 375px) {
+  .app-shell, .main-panel, .content-wrap, .search-panel, .assistant-layout { min-width: 0; max-width: 100%; }
+  .search-row { flex-wrap: wrap; gap: 6px; padding: 6px; }
+  .search-row input { flex-basis: calc(100% - 40px); }
+  .search-button { margin-left: auto; }
+  .result-card, .answer-column, .questions-column { min-width: 0; overflow-wrap: anywhere; }
+  .result-meta-right { flex-wrap: wrap; }
 }

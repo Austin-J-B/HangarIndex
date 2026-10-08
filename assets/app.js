@@ -4,13 +4,20 @@
 
   let miniSearch = null;
   let docsMap = {};
+  let docsByFilename = {};
   let answersList = [];
   let chunksData = [];
+  let currentWorkstreamFilter = 'all';
+  let apiBase = '';
+  let searchRequestId = 0;
+  let activeSearch = null;
 
   const dom = {
     navItems: document.querySelectorAll('.nav-item'),
     views: document.querySelectorAll('.view'),
     searchQuery: document.getElementById('search-query'),
+    searchCategory: document.getElementById('search-category'),
+    assistantCategory: document.getElementById('assistant-category'),
     searchButton: document.getElementById('search-button'),
     searchOutput: document.getElementById('search-output'),
     searchMessage: document.getElementById('search-message'),
@@ -40,51 +47,132 @@
       .replace(/'/g, '&#39;');
   }
 
+  function localPreviewApiBase() { return ''; }
+
+  function resolveApiBase(configured) {
+    const preview = localPreviewApiBase();
+    if (preview) return preview;
+    let base = String(configured || '').trim();
+    while (base.endsWith('/')) base = base.slice(0, -1);
+    return base.toLowerCase().startsWith('https://') ? base : '';
+  }
+
+  function searchAuthHeaders() {
+    try {
+      const code = localStorage.getItem('hangarindex.accessCode') || '';
+      return code ? {Authorization: 'Bearer ' + code} : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function staticDocMeta(name) {
+    const key = String(name || '');
+    return docsMap[key] || docsByFilename[key.toLowerCase()] || {};
+  }
+
   function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  function buildCenteredExcerpt(text, queryTerms, maxLen = 320) {
+  const WINDOWS_1252_BYTES = new Map([
+    [0x20ac, 0x80], [0x201a, 0x82], [0x0192, 0x83], [0x201e, 0x84],
+    [0x2026, 0x85], [0x2020, 0x86], [0x2021, 0x87], [0x02c6, 0x88],
+    [0x2030, 0x89], [0x0160, 0x8a], [0x2039, 0x8b], [0x0152, 0x8c],
+    [0x017d, 0x8e], [0x2018, 0x91], [0x2019, 0x92], [0x201c, 0x93],
+    [0x201d, 0x94], [0x2022, 0x95], [0x2013, 0x96], [0x2014, 0x97],
+    [0x02dc, 0x98], [0x2122, 0x99], [0x0161, 0x9a], [0x203a, 0x9b],
+    [0x0153, 0x9c], [0x017e, 0x9e], [0x0178, 0x9f],
+  ]);
+
+  function repairDisplayedMojibake(value) {
+    const chars = Array.from(String(value ?? ''));
+    const decoder = new TextDecoder('utf-8', {fatal: true});
+    const repaired = [];
+    const byteFor = (char) => {
+      const codePoint = char.codePointAt(0);
+      return codePoint <= 0xff ? codePoint : WINDOWS_1252_BYTES.get(codePoint);
+    };
+    for (let index = 0; index < chars.length;) {
+      const lead = chars[index].codePointAt(0);
+      const byteLength = lead >= 0xc2 && lead <= 0xdf ? 2
+        : lead >= 0xe0 && lead <= 0xef ? 3
+          : lead >= 0xf0 && lead <= 0xf4 ? 4 : 0;
+      if (!byteLength || index + byteLength > chars.length) {
+        repaired.push(chars[index++]);
+        continue;
+      }
+      const bytes = [lead];
+      let valid = true;
+      for (let offset = 1; offset < byteLength; offset++) {
+        const byte = byteFor(chars[index + offset]);
+        if (byte === undefined) {
+          valid = false;
+          break;
+        }
+        bytes.push(byte);
+      }
+      if (valid) {
+        try {
+          const decoded = decoder.decode(new Uint8Array(bytes));
+          if (decoded !== chars.slice(index, index + byteLength).join('')) {
+            repaired.push(decoded);
+            index += byteLength;
+            continue;
+          }
+        } catch (error) {
+          // Keep ordinary Unicode as-is unless it forms valid UTF-8 mojibake bytes.
+        }
+      }
+      repaired.push(chars[index++]);
+    }
+    return repaired.join('');
+  }
+
+  function buildCenteredExcerpt(text, queryTerms, maxLen = 600) {
     if (!text) return '';
-    const clean = text.replace(/\s+/g, ' ').trim();
+    const clean = repairDisplayedMojibake(text).replace(/\s+/g, ' ').trim();
     if (clean.length <= maxLen) return clean;
 
-    const lower = clean.toLowerCase();
-    let firstPos = -1;
-
-    for (const term of queryTerms) {
-      if (term.length < 2) continue;
-      const idx = lower.indexOf(term.toLowerCase());
-      if (idx !== -1 && (firstPos === -1 || idx < firstPos)) {
-        firstPos = idx;
+    const queryStems = queryHighlightStems(queryTerms);
+    const hit = [...clean.matchAll(/[\p{L}\p{N}]+(?:\.[\p{L}\p{N}]+)*/gu)]
+      .map(m => ({start: m.index, end: m.index + m[0].length, stem: hlStem(m[0])}))
+      .find(token => queryStems.some(stem => hlSame(stem, token.stem)));
+    if (!hit) {
+      let end = clean.lastIndexOf(' ', maxLen);
+      if (end <= 0) {
+        end = clean.indexOf(' ', maxLen);
+        if (end < 0) end = clean.length;
       }
-    }
-
-    if (firstPos === -1) {
-      return clean.slice(0, maxLen) + '…';
+      return clean.slice(0, end).trimEnd() + (end < clean.length ? '…' : '');
     }
 
     const half = Math.floor(maxLen / 2);
-    let start = Math.max(0, firstPos - half);
-    let end = min(clean.length, start + maxLen);
+    let start = Math.max(0, hit.start - half);
+    let end = Math.min(clean.length, start + maxLen);
 
     if (start > 0) {
       const snap = clean.indexOf(' ', start);
-      if (snap !== -1 && snap < start + 25) start = snap + 1;
+      if (snap !== -1 && snap < end && snap < hit.start) start = snap + 1;
+      else {
+        const previous = clean.lastIndexOf(' ', start);
+        start = previous >= 0 ? previous + 1 : 0;
+      }
     }
+    end = Math.min(clean.length, start + maxLen);
     if (end < clean.length) {
       const snap = clean.lastIndexOf(' ', end);
-      if (snap !== -1 && snap > end - 25) end = snap;
+      if (snap >= hit.end) end = snap;
+      else {
+        const next = clean.indexOf(' ', end);
+        end = next >= 0 ? next : clean.length;
+      }
     }
 
     let result = clean.slice(start, end).trim();
     if (start > 0) result = '…' + result;
     if (end < clean.length) result = result + '…';
     return result;
-  }
-
-  function min(a, b) {
-    return a < b ? a : b;
   }
 
   const HL_STOP = new Set(('a an the and or but if of in on at to for from by with without into onto over under is are was were be been being do does did can could may might must shall should will would i we you he she it they this that these those what which who whom how when where why there here as not no yes my our your their its about after before than then so such per via any all each other more most some only also just up out off down vs etc using use used work working need needed want please tell show find give get under').split(' '));
@@ -100,13 +188,16 @@
     if (a === b) return true;
     return a.length >= 5 && b.length >= 5 && a.slice(0, 5) === b.slice(0, 5);
   }
+  function queryHighlightStems(queryTerms) {
+    const words = [];
+    for (const term of (queryTerms || [])) for (const word of String(term).toLowerCase().match(/[\p{L}\p{N}]+(?:\.[\p{L}\p{N}]+)*/gu) || []) words.push(word);
+    const content = [...new Set(words.filter(word => !HL_STOP.has(word) && (word.length >= 3 || /\d/.test(word))))];
+    return content.map(hlStem);
+  }
   function highlightTerms(snippet, queryTerms, maxMarks = 8) {
     const text = String(snippet ?? '');
-    const words = [];
-    for (const t of (queryTerms || [])) for (const w of String(t).toLowerCase().match(/[\p{L}\p{N}]+(?:\.[\p{L}\p{N}]+)*/gu) || []) words.push(w);
-    const content = [...new Set(words.filter(w => !HL_STOP.has(w) && (w.length >= 3 || /\d/.test(w))))];
-    if (!content.length) return escapeHtml(text);
-    const qStems = content.map(hlStem);
+    const qStems = queryHighlightStems(queryTerms);
+    if (!qStems.length) return escapeHtml(text);
     const tokens = [...text.matchAll(/[\p{L}\p{N}]+(?:\.[\p{L}\p{N}]+)*/gu)].map(m => ({start: m.index, end: m.index + m[0].length, stem: hlStem(m[0])}));
     const hitIdx = tokens.map(t => qStems.findIndex(q => hlSame(q, t.stem)));
     const spans = [];
@@ -127,7 +218,9 @@
     return html + escapeHtml(text.slice(cursor));
   }
 
-  function handleSearch(query) {
+  async function handleSearch(query) {
+    const requestId = ++searchRequestId;
+    if (activeSearch) activeSearch.abort();
     const q = (query || '').trim();
     if (!q) {
       dom.searchOutput.innerHTML = `
@@ -148,21 +241,86 @@
     }
 
     const t0 = performance.now();
-    const results = miniSearch.search(q, {
+    let fallbackReason = '';
+    if (apiBase) {
+      const controller = new AbortController();
+      activeSearch = controller;
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const url = new URL(apiBase + '/api/search');
+        url.searchParams.set('query', q);
+        url.searchParams.set('limit', '40');
+        url.searchParams.set('category', dom.searchCategory?.value || 'All');
+        const response = await fetch(url.toString(), {
+          headers: searchAuthHeaders(),
+          signal: controller.signal,
+          mode: localPreviewApiBase() ? 'same-origin' : 'cors',
+          cache: 'no-store',
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const payload = await response.json();
+        if (requestId !== searchRequestId) return;
+        const results = apiSearchResults(payload);
+        const terms = Array.isArray(payload.highlight_terms) && payload.highlight_terms.length
+          ? payload.highlight_terms : q.toLowerCase().split(/\s+/).filter(t => t.length >= 2);
+        renderSearchResults(results, terms, (performance.now() - t0).toFixed(1), q, 'Live service');
+        checkPreGeneratedMatch(q);
+        return;
+      } catch (err) {
+        if (requestId !== searchRequestId || err.name === 'AbortError' && activeSearch !== controller) return;
+        fallbackReason = /HTTP 401|HTTP 403/.test(String(err))
+          ? 'Live search needs the Ask access code; showing static matches.'
+          : 'Live search unavailable; showing static matches.';
+      } finally {
+        clearTimeout(timeout);
+        if (activeSearch === controller) activeSearch = null;
+      }
+    }
+
+    const rawResults = miniSearch.search(q, {
       boost: { title: 3, docName: 2, text: 1 },
       prefix: true,
       fuzzy: 0.15
     });
+    const category = dom.searchCategory?.value || 'All';
+    const results = category === 'All' ? rawResults : rawResults.filter(hit => staticDocMeta(hit.docName).category === category);
     const t1 = performance.now();
 
     const terms = q.toLowerCase().split(/\s+/).filter(t => t.length >= 2);
-    renderSearchResults(results, terms, (t1 - t0).toFixed(1), q);
+    renderSearchResults(results, terms, (t1 - t0).toFixed(1), q, fallbackReason || 'Static index');
     checkPreGeneratedMatch(q);
   }
 
-  function renderSearchResults(results, queryTerms, durationMs, rawQuery) {
+  function apiSearchResults(payload) {
+    const results = [];
+    (payload.documents || []).forEach(document => {
+      const docName = String(document.doc_id || document.name || '');
+      const meta = staticDocMeta(docName);
+      const passages = Array.isArray(document.passages) && document.passages.length
+        ? document.passages
+        : (document.excerpts || []).map((excerpt, index) => ({excerpt, page: (document.pages || [])[index]}));
+      passages.forEach((passage, index) => {
+        if (!passage || !passage.excerpt) return;
+        results.push({
+          id: `live-${docName}-${passage.page || index}`,
+          docName,
+          title: meta.title || docName,
+          subfolder: meta.subfolder || '',
+          tag: meta.tag || 'reference',
+          page: passage.page || null,
+          redistribute: meta.redistribute || 'link-only',
+          officialUrl: meta.officialUrl || '',
+          category: meta.category || '',
+          text: String(passage.excerpt),
+        });
+      });
+    });
+    return results;
+  }
+
+  function renderSearchResults(results, queryTerms, durationMs, rawQuery, sourceLabel = 'Static index') {
     if (!results || results.length === 0) {
-      dom.searchMessage.textContent = `No matches found for "${rawQuery}" (${durationMs}ms)`;
+      dom.searchMessage.textContent = `No matches found for "${rawQuery}" (${durationMs}ms · ${sourceLabel})`;
       dom.searchOutput.innerHTML = `
         <div class="welcome-note" style="border-left: 3px solid #df8a28;">
           <div>
@@ -173,15 +331,18 @@
       return;
     }
 
-    dom.searchMessage.textContent = `Found ${results.length} passages for "${rawQuery}" in ${durationMs}ms`;
+    const documentCount = new Set(results.map(hit => hit.docName)).size;
+    dom.searchMessage.textContent = `Found ${results.length} passages across ${documentCount} documents for "${rawQuery}" in ${durationMs}ms · ${sourceLabel}`;
 
     const topResults = results.slice(0, 15);
     const html = topResults.map(hit => {
-      const doc = docsMap[hit.docName] || {};
-      const isHosted = hit.redistribute === 'yes';
-      const openTarget = isHosted 
-        ? `docs/${hit.subfolder}/${hit.docName}${hit.page ? `#page=${hit.page}` : ''}`
-        : hit.officialUrl;
+      const doc = staticDocMeta(hit.docName);
+      const filename = doc.filename || hit.docName;
+      const subfolder = doc.subfolder || hit.subfolder;
+      const isHosted = (doc.redistribute || hit.redistribute) === 'yes' && Boolean(subfolder && filename);
+      const openTarget = isHosted
+        ? `docs/${encodeURI(subfolder)}/${encodeURI(filename)}${hit.page ? `#page=${hit.page}` : ''}`
+        : (doc.officialUrl || hit.officialUrl || '');
 
       const pageLabel = hit.page ? `Page ${hit.page}` : 'Section';
       const excerptRaw = buildCenteredExcerpt(hit.text, queryTerms, 340);
@@ -191,14 +352,12 @@
         <article class="result-card">
           <div class="result-head">
             <div class="result-title-group">
-              <span class="tag-badge ${escapeHtml(hit.tag)}">${escapeHtml(hit.tag)}</span>
-              <strong>${escapeHtml(hit.title || hit.docName)}</strong>
+              <span class="tag-badge ${escapeHtml(doc.tag || hit.tag)}">${escapeHtml(doc.tag || hit.tag)}</span>
+              <strong>${escapeHtml(doc.title || hit.title || hit.docName)}</strong>
             </div>
             <div class="result-meta-right">
               <span>${pageLabel}</span>
-              <a class="result-open-link" href="${escapeHtml(openTarget)}" target="_blank" rel="noopener noreferrer">
-                ${isHosted ? 'Open PDF ↗' : 'Official Link ↗'}
-              </a>
+              ${openTarget ? `<a class="result-open-link" href="${escapeHtml(openTarget)}" target="_blank" rel="noopener noreferrer">${isHosted ? 'Open PDF ↗' : 'Official Link ↗'}</a>` : '<span class="result-open-link muted">No public link</span>'}
             </div>
           </div>
           <p class="result-excerpt">${excerptHtml}</p>
@@ -210,6 +369,7 @@
 
   function checkPreGeneratedMatch(query) {
     const qClean = query.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const selectedCategory = dom.searchCategory?.value || 'All';
     if (!qClean) {
       dom.preGenBox.classList.add('hidden');
       return;
@@ -217,6 +377,7 @@
 
     // Match against real benchmark queries
     const match = answersList.find(a => {
+      if (!answerHasCategory(a, selectedCategory)) return false;
       const aQuery = a.query.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
       return aQuery.includes(qClean) || qClean.includes(aQuery) ||
              (qClean.length >= 8 && aQuery.startsWith(qClean.slice(0, 14)));
@@ -229,16 +390,14 @@
     }
   }
 
-  function renderPreGeneratedBox(ans) {
-    let cautionHtml = '';
-    if (ans.caution_expected && ans.caution_trigger) {
-      cautionHtml = `
-        <div class="caution-callout">
-          <strong>Mandatory Safety / Regulatory Caution</strong>
-          ${escapeHtml(ans.caution_trigger)}
-        </div>`;
-    }
+  function answerHasCategory(answer, category) {
+    return category === 'All' || (answer.sources || []).some(source => {
+      const doc = docsMap[source.doc_name] || docsMap[source.filename] || {};
+      return doc.category === category;
+    });
+  }
 
+  function renderPreGeneratedBox(ans) {
     const formattedAnswer = escapeHtml(ans.answer).replace(
       /\[(S\d+)\]/g,
       '<span class="citation-chip">[$1]</span>'
@@ -262,7 +421,7 @@
               <strong>${escapeHtml(src.title || src.doc_name)} ${src.page ? '(Page ' + src.page + ')' : ''}</strong>
               ${statusPill}
             </div>
-            <p>${escapeHtml(src.excerpt)}</p>
+            <p>${escapeHtml(repairDisplayedMojibake(src.excerpt))}</p>
           </div>
           <div class="source-action">
             ${actionLink}
@@ -304,7 +463,6 @@
         <span class="pre-generated-meta">Reference query (${escapeHtml(ans.id)})</span>
       </div>
       <div class="pre-generated-text">${formattedAnswer}</div>
-      ${cautionHtml}
       <div class="pre-generated-sources">
         <strong style="font-size:10px;color:#6f828a;letter-spacing:0.5px;text-transform:uppercase;">Cited Sources:</strong>
         ${sourcesHtml}
@@ -314,11 +472,14 @@
   }
 
   function renderAssistantQuestions(filter) {
+    currentWorkstreamFilter = filter;
     const filtered = (filter === 'all') 
       ? answersList 
       : answersList.filter(a => a.workstream === filter);
+    const category = dom.assistantCategory?.value || 'All';
+    const categoryFiltered = filtered.filter(a => answerHasCategory(a, category));
 
-    dom.questionsList.innerHTML = filtered.map(a => `
+    dom.questionsList.innerHTML = categoryFiltered.map(a => `
       <button class="question-btn" data-qid="${escapeHtml(a.id)}">
         <span>${escapeHtml(a.query)}</span>
         <span class="q-workstream-pill">${escapeHtml(a.workstream)}</span>
@@ -357,22 +518,13 @@
               <strong>${escapeHtml(src.title || src.doc_name)} ${src.page ? '(Page ' + src.page + ')' : ''}</strong>
               ${statusPill}
             </div>
-            <p>${escapeHtml(src.excerpt)}</p>
+            <p>${escapeHtml(repairDisplayedMojibake(src.excerpt))}</p>
           </div>
           <div class="source-action">
             ${actionLink}
           </div>
         </div>`;
     });
-
-    let cautionHtml = '';
-    if (ans.caution_expected && ans.caution_trigger) {
-      cautionHtml = `
-        <div class="caution-callout">
-          <strong>Mandatory Safety / Regulatory Caution</strong>
-          ${escapeHtml(ans.caution_trigger)}
-        </div>`;
-    }
 
     const formattedAnswer = escapeHtml(ans.answer).replace(
       /\[(S\d+)\]/g,
@@ -410,7 +562,6 @@
     dom.answerDisplay.innerHTML = `
       <h3>${escapeHtml(ans.query)}</h3>
       <div class="pre-generated-text">${formattedAnswer}</div>
-      ${cautionHtml}
       <div class="pre-generated-sources">
         <strong style="font-size:10px;color:#6f828a;letter-spacing:0.5px;text-transform:uppercase;">Cited Technical References:</strong>
         ${sourcesHtml}
@@ -449,7 +600,7 @@
         <tr>
           <td>
             <strong>${escapeHtml(d.title)}</strong>
-            <div style="font-size:9px;color:#88979c;margin-top:3px;">${escapeHtml(d.filename)}</div>
+            ${d.filename ? `<div style="font-size:9px;color:#88979c;margin-top:3px;">${escapeHtml(d.filename)}</div>` : ''}
           </td>
           <td><span class="tag-badge ${escapeHtml(d.tag)}">${escapeHtml(d.tag)}</span></td>
           <td>${escapeHtml(d.authority)}</td>
@@ -502,6 +653,10 @@
   dom.searchButton.addEventListener('click', () => {
     handleSearch(dom.searchQuery.value);
   });
+  dom.searchCategory?.addEventListener('change', () => {
+    handleSearch(dom.searchQuery.value);
+    checkPreGeneratedMatch(dom.searchQuery.value);
+  });
 
   dom.searchQuery.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -528,6 +683,7 @@
       renderAssistantQuestions(btn.dataset.filter);
     });
   });
+  dom.assistantCategory?.addEventListener('change', () => renderAssistantQuestions(currentWorkstreamFilter));
 
   // Library Table Filter
   if (dom.libraryFilter) {
@@ -571,7 +727,8 @@
   // Initialize Data
   async function initApp() {
     try {
-      const [docsResp, chunksResp, answersResp] = await Promise.all([
+      const [configResp, docsResp, chunksResp, answersResp] = await Promise.all([
+        fetch('config.json', {cache: 'no-store'}).catch(() => ({ok: false})),
         fetch('data/docs.json'),
         fetch('data/chunks.json'),
         fetch('data/answers.json').catch(() => ({ ok: false }))
@@ -583,6 +740,8 @@
 
       const docsData = await docsResp.json();
       chunksData = await chunksResp.json();
+      const configData = configResp.ok ? await configResp.json().catch(() => ({})) : {};
+      apiBase = resolveApiBase(configData.apiBase);
 
       if (answersResp.ok) {
         try {
@@ -595,7 +754,10 @@
       }
 
       // Populate docsMap
-      docsData.forEach(d => { docsMap[d.filename] = d; });
+      docsData.forEach((d, index) => {
+        docsMap[d.filename || `link-only-${index}`] = d;
+        if (d.filename) docsByFilename[d.filename.toLowerCase()] = d;
+      });
 
       // Handle Q&A tab visibility per D-006: if empty, hide Q&A
       const qaNavItem = document.getElementById('nav-qa-item');
@@ -639,8 +801,10 @@
   }
 
   // Boot
+  window.HangarHighlight = highlightTerms;
+  window.HangarCenteredExcerpt = buildCenteredExcerpt;
+  window.HangarRepairMojibake = repairDisplayedMojibake;
   if (document.readyState === 'loading') {
-    window.HangarHighlight = highlightTerms;
   document.addEventListener('DOMContentLoaded', initApp);
   } else {
     initApp();
