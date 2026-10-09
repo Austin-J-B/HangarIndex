@@ -145,8 +145,10 @@
       const open = link.href
         ? `<a href="${esc(link.href)}" target="_blank" rel="noopener">${link.hosted ? 'Open PDF' : 'Official source'} ↗</a>`
         : '<span class="muted">Not in public library</span>';
+      const title = link.label || s.title || s.name || s.doc_name || 'Source document';
+      const filename = s.filename || link.doc?.filename || s.name || s.doc_name || '';
       return `<article class="ask-source" id="ask-src-${esc(s.id)}">
-        <header><span class="ask-cite static">${esc(s.id)}</span><strong>${esc(link.label)}</strong>${s.caution_source ? '<em>Caution</em>' : ''}</header>
+        <header><span class="ask-cite static">${esc(s.id)}</span><div style="min-width:0;flex:1"><strong>${esc(title)}</strong><small style="display:block;margin-top:3px;color:#89969a;font-size:9px;overflow-wrap:anywhere">${esc(filename)}</small></div>${s.caution_source ? '<em>Caution</em>' : ''}</header>
         <div class="ask-excerpt">${highlight(centerExcerpt(s.excerpt || '', terms), terms)}</div>
         <footer><span>${where}${link.hosted ? '' : ' · link only'}</span>${open}</footer></article>`;
     }).join('') + '</div>';

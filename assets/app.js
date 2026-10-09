@@ -353,7 +353,10 @@
           <div class="result-head">
             <div class="result-title-group">
               <span class="tag-badge ${escapeHtml(doc.tag || hit.tag)}">${escapeHtml(doc.tag || hit.tag)}</span>
-              <strong>${escapeHtml(doc.title || hit.title || hit.docName)}</strong>
+              <div class="result-title-copy">
+                <strong>${escapeHtml(doc.title || hit.title || hit.docName)}</strong>
+                <small class="result-file-name">${escapeHtml(filename)}</small>
+              </div>
             </div>
             <div class="result-meta-right">
               <span>${pageLabel}</span>

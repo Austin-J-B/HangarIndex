@@ -677,6 +677,9 @@ body {
   white-space: nowrap;
 }
 
+.result-title-copy { display: grid; gap: 3px; min-width: 0; }
+.result-title-copy .result-file-name { font-size: 9px; color: #89969a; font-weight: 400; overflow-wrap: anywhere; }
+
 .tag-badge {
   font-size: 8px;
   font-weight: 700;
