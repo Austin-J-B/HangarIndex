@@ -17,6 +17,7 @@
   let docsByName = new Map();
   let savedAnswers = [];
   let busy = false;
+  let askHistory = [];
 
   const SUGGESTED = [
     'Can I strip paint off a high-strength steel landing gear part the same way as an aluminium panel?',
@@ -128,7 +129,9 @@
         const label = /^answer$/i.test(rawLabel) ? 'Direct answer'
           : /^warnings?/i.test(rawLabel) ? 'Warnings from the source documents on this topic'
             : rawLabel;
-        html = `<span class="ask-section">${esc(label)}</span>` + esc(block.slice(heading[0].length));
+        const section = /^(?:direct answer|answer)$/i.test(rawLabel)
+          ? '' : `<span class="ask-section">${esc(label)}</span>`;
+        html = section + esc(block.slice(heading[0].length));
       }
       html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       html = html.replace(/\[(S\d+)\]/g, (m, id) => (ids.has(id)
@@ -150,6 +153,7 @@
       return `<article class="ask-source" id="ask-src-${esc(s.id)}">
         <header><span class="ask-cite static">${esc(s.id)}</span><div style="min-width:0;flex:1"><strong>${esc(title)}</strong><small style="display:block;margin-top:3px;color:#89969a;font-size:9px;overflow-wrap:anywhere">${esc(filename)}</small></div>${s.caution_source ? '<em>Caution</em>' : ''}</header>
         <div class="ask-excerpt">${highlight(centerExcerpt(s.excerpt || '', terms), terms)}</div>
+        ${s.is_ocr ? '<small class="ocr-page-note">Scanned page · text may contain recognition errors</small>' : ''}
         <footer><span>${where}${link.hosted ? '' : ' · link only'}</span>${open}</footer></article>`;
     }).join('') + '</div>';
   }
@@ -164,9 +168,61 @@
   function turnShell(question, label) {
     const turn = document.createElement('section');
     turn.className = 'ask-turn';
-    turn.innerHTML = `<p class="ask-q">${esc(question)}</p><div class="ask-meta">${esc(label)}</div><div class="ask-body"><p class="ask-wait">Searching the library…</p></div>`;
-    $('ask-thread').prepend(turn);
+    turn.innerHTML = `<p class="ask-q">${esc(question)}</p><div class="ask-search-query"></div><div class="ask-meta">${esc(label)}</div><div class="ask-body"><p class="ask-wait">Searching the library…</p></div>`;
+    $('ask-thread').append(turn);
     return turn;
+  }
+
+  function boundedHistory(history) {
+    const kept = history.slice(-4).map((turn) => ({...turn}));
+    const size = () => kept.reduce((total, turn) => total + turn.question.length + turn.answer.length, 0);
+    while (kept.length > 1 && size() > 6000) kept.shift();
+    if (kept.length && size() > 6000) {
+      const turn = kept[kept.length - 1];
+      const room = Math.max(0, 6000 - turn.question.length);
+      turn.answer = turn.answer.slice(0, Math.max(0, room - 1)).trimEnd() + '…';
+    }
+    return kept;
+  }
+
+  function updateThreadControls() {
+    const controls = $('ask-thread-controls');
+    const form = $('ask-form');
+    controls.hidden = askHistory.length === 0;
+    if (!askHistory.length) {
+      $('ask-thread-guidance').textContent = 'Ask a follow-up';
+      $('ask-suggestions').before(form);
+      $('ask-suggestions').hidden = false;
+      $('ask-input').disabled = false;
+      $('ask-submit').disabled = false;
+      $('ask-submit').textContent = 'Ask';
+      return;
+    }
+    $('ask-thread').after(controls);
+    controls.after(form);
+    $('ask-suggestions').hidden = true;
+    const atLimit = askHistory.length >= 5;
+    $('ask-thread-guidance').textContent = atLimit
+      ? 'Four follow-ups reached. Start a new question to continue.'
+      : 'Ask a follow-up';
+    $('ask-input').placeholder = atLimit ? 'Start a new question to continue…' : 'Ask a follow-up…';
+    $('ask-input').disabled = atLimit;
+    $('ask-submit').disabled = atLimit;
+    $('ask-submit').textContent = atLimit ? 'New question required' : 'Ask a follow-up';
+  }
+
+  function resetThread() {
+    askHistory = [];
+    $('ask-thread').replaceChildren();
+    $('ask-thread-controls').hidden = true;
+    $('ask-suggestions').hidden = false;
+    $('ask-suggestions').before($('ask-form'));
+    $('ask-input').value = '';
+    $('ask-input').placeholder = 'Ask a question in plain words, e.g. can I use acid stripper on a steel bracket?';
+    $('ask-input').disabled = false;
+    $('ask-submit').disabled = false;
+    $('ask-submit').textContent = 'Ask';
+    $('ask-input').focus();
   }
 
   function overlap(a, b) {
@@ -195,7 +251,7 @@
     bindCites(body);
   }
 
-  async function answerLive(question, turn) {
+  async function answerLive(question, turn, history) {
     const body = turn.querySelector('.ask-body');
     const meta = turn.querySelector('.ask-meta');
     const ctrl = new AbortController();
@@ -205,7 +261,7 @@
     const r = await fetch(apiBase + '/api/ask/stream', {
       method: 'POST', mode: localPreviewApiBase() ? 'same-origin' : 'cors', signal: ctrl.signal,
       headers: {'Content-Type': 'application/json', ...authHeaders()},
-      body: JSON.stringify({question, category: $('ask-category')?.value || 'All'}),
+      body: JSON.stringify({question, category: $('ask-category')?.value || 'All', history}),
     });
     if (r.status === 401) { clearTimeout(timeout); needCode(); throw new Error('locked'); }
     if (r.status === 403) { clearTimeout(timeout); throw new Error('http 403'); }
@@ -213,7 +269,7 @@
     if (!r.ok || !r.body) { clearTimeout(timeout); throw new Error('http ' + r.status); }
     const reader = r.body.getReader();
     const dec = new TextDecoder();
-    let buf = ''; let text = ''; let sources = []; let terms = [];
+    let buf = ''; let text = ''; let sources = []; let terms = []; let searched = ''; let finished = false;
     const answerEl = document.createElement('div'); answerEl.className = 'ask-answer streaming';
     const sourcesEl = document.createElement('div');
     body.replaceChildren(answerEl, sourcesEl);
@@ -227,8 +283,13 @@
         const line = buf.slice(0, cut).trim(); buf = buf.slice(cut + 2);
         if (!line.startsWith('data:')) continue;
         let ev; try { ev = JSON.parse(line.slice(5)); } catch (e) { continue; }
-        if (ev.type === 'meta') {
+        if (ev.type === 'query') {
+          searched = String(ev.query || '');
+          turn.querySelector('.ask-search-query').textContent = searched ? `Searched for: ${searched}` : '';
+        } else if (ev.type === 'meta') {
           sources = ev.data.sources || []; terms = ev.data.highlight_terms || [];
+          searched = ev.data.search_query || searched;
+          turn.querySelector('.ask-search-query').textContent = searched ? `Searched for: ${searched}` : '';
           meta.textContent = `Live assistant · ${ev.data.llm?.model || 'local model'}`;
           sourcesEl.innerHTML = renderSources(sources, terms); bindCites(sourcesEl);
           if (ev.data.answer) text = ev.data.answer;
@@ -240,6 +301,7 @@
         } else if (ev.type === 'token') {
           text += ev.text;
         } else if (ev.type === 'done') {
+          finished = true;
           if (ev.answer) text = ev.answer;
           answerEl.classList.remove('streaming');
           const bad = ev.citation_check && ev.citation_check.uncited_sentences ? ev.citation_check.uncited_sentences.length : 0;
@@ -252,16 +314,26 @@
     }
     clearTimeout(timeout);
     answerEl.classList.remove('streaming');
+    if (!finished) throw new Error('stream ended before completion');
+    return {answer:text, sources};
   }
 
   async function ask(question) {
     question = question.trim();
-    if (!question || busy) return;
+    if (!question || busy || askHistory.length >= 5) return;
     busy = true; $('ask-submit').disabled = true;
     const turn = turnShell(question, online ? 'Live assistant' : 'Saved answers');
     try {
-      if (online) await answerLive(question, turn);
-      else answerOffline(question, turn, apiBase ? 'Assistant offline' : 'Offline demo');
+      if (online) {
+        const result = await answerLive(question, turn, boundedHistory(askHistory));
+        const cited = new Set((result.answer.match(/\[(S\d+)\]/g) || []).map((id) => id.slice(1, -1)));
+        const used = result.sources.filter((source) => cited.has(source.id));
+        askHistory.push({question, answer:result.answer, source_ids:used.map((source) => source.id),
+          passage_refs:used.map((source) => source.passage_ref).filter((ref) => Number.isInteger(ref)
+            || (String(ref).startsWith('c:') && /^\d+$/.test(String(ref).slice(2))))});
+        askHistory = askHistory.slice(-5);
+        updateThreadControls();
+      } else answerOffline(question, turn, apiBase ? 'Assistant offline' : 'Offline demo');
     } catch (e) {
       if (e.message === 'busy') {
         turn.querySelector('.ask-meta').textContent = 'Live assistant';
@@ -276,7 +348,9 @@
         answerOffline(question, turn, 'Assistant not running');
       }
     } finally {
-      busy = false; $('ask-submit').disabled = false;
+      busy = false;
+      if (askHistory.length) updateThreadControls();
+      else $('ask-submit').disabled = false;
     }
   }
 
@@ -288,6 +362,7 @@
       $('ask-input').value = b.textContent; ask(b.textContent);
     });
     $('ask-form').addEventListener('submit', (e) => { e.preventDefault(); ask($('ask-input').value); });
+    $('ask-new-question').addEventListener('click', resetThread);
     $('ask-category').addEventListener('change', () => {
       if (!online) showOffline(apiBase ? 'The assistant server is not running right now. Saved answers from earlier runs are below.'
         : 'This copy of the site is not connected to a live assistant. Saved answers from earlier runs are below.');

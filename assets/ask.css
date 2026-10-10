@@ -24,7 +24,14 @@
 #ask-code{flex:1;min-width:180px;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:16px}
 #ask-code-form button{min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:6px;background:var(--white);font:inherit;font-size:14px;cursor:pointer}
 #ask-thread{margin-top:22px;display:flex;flex-direction:column;gap:18px}
-.ask-turn{background:var(--white);border:1px solid var(--line);border-radius:8px;padding:16px}
+#ask-thread-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;color:var(--muted);font-size:13px}
+#ask-thread-controls[hidden]{display:none!important}
+#ask-suggestions[hidden]{display:none!important}
+#ask-thread-controls button{min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:var(--white);color:var(--ink);font:inherit;cursor:pointer}
+#ask-thread-controls button:hover{border-color:#9fb0bb}
+.ask-search-query{min-height:0;margin:0 0 8px;color:var(--muted);font-size:12px}
+.ask-search-query:empty{display:none}
+.ask-turn{background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;padding:12px 0}
 .ask-q{margin:0 0 4px;font-size:16px;font-weight:600;color:var(--ink);line-height:1.4}
 .ask-meta{font-size:12.5px;color:var(--muted);margin-bottom:12px}
 .ask-body{font-size:15.5px;line-height:1.6;color:var(--ink)}
@@ -46,6 +53,7 @@
 .ask-excerpt mark{background:#fbe9a8;color:inherit;padding:0 1px;border-radius:2px}
 .ask-source footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px;margin-top:8px;font-size:13px;color:var(--muted)}
 .ask-source footer a{min-height:32px;display:inline-flex;align-items:center;color:var(--navy);font-weight:600}
+.ocr-page-note{display:block;margin:5px 0;color:#8a653f;font-size:12px;font-weight:600}
 @media (max-width:480px){.ask-wrap{padding:16px 16px 40px}.ask-head h1{font-size:21px}.ask-category{grid-template-columns:1fr;gap:4px;max-width:100%}#ask-form{flex-direction:column;align-items:stretch;min-width:0}#ask-submit{width:100%}}
 #ask-offline{margin:16px 0 0;padding:14px 16px;border:1px solid #e3d6b8;border-radius:8px;background:#fbf7ec}
 #ask-offline strong{display:block;font-size:15px;color:var(--ink);margin-bottom:2px}
