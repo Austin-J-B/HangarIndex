@@ -67,22 +67,24 @@
       <section class="view active" id="view-ask">
           <div class="ask-wrap">
             <div class="ask-head">
-              <div><h1>Ask the library</h1><p>Answers are written from the documents below each answer, with every statement linked to its source.</p></div>
+              <div><h1>Ask the library</h1><p>Document findings include linked sources. Unverified ideas are shown separately when useful.</p></div>
               <span id="ask-status" data-state="offline"><span>Saved answers only</span></span>
             </div>
             <label class="ask-category">Category<select id="ask-category"><option>All</option><option>Engineering and repair</option><option>Regulations</option><option>Business and finance</option></select></label>
-            <form id="ask-form" autocomplete="off">
-              <textarea id="ask-input" rows="2" maxlength="2000" placeholder="Ask a question in plain words, e.g. can I use acid stripper on a steel bracket?" aria-label="Your question"></textarea>
-              <button id="ask-submit" type="submit">Ask</button>
-            </form>
             <div id="ask-suggestions" aria-label="Suggested questions"></div>
             <div id="ask-offline" hidden><strong>Live assistant unavailable</strong><p></p><ul></ul></div>
             <details id="ask-access" hidden>
               <summary>Access code for the live assistant</summary>
               <form id="ask-code-form"><input id="ask-code" type="password" autocomplete="off" placeholder="Access code" aria-label="Access code"><button type="submit">Save</button><button type="button" id="ask-code-clear">Forget</button></form>
             </details>
-            <div id="ask-thread"></div>
-            <div id="ask-thread-controls" hidden><span id="ask-thread-guidance">Ask a follow-up</span><button type="button" id="ask-new-question">New question</button></div>
+            <div id="ask-thread" role="log" aria-label="Conversation" aria-live="off"></div>
+            <div class="ask-composer">
+            <div id="ask-thread-controls" hidden><span id="ask-thread-guidance">Enter to send · Shift+Enter for a new line</span><button type="button" id="ask-new-question">New chat</button></div>
+            <form id="ask-form" autocomplete="off">
+              <textarea id="ask-input" rows="2" maxlength="2000" placeholder="Ask a question in plain words, e.g. can I use acid stripper on a steel bracket?" aria-label="Your question"></textarea>
+              <button id="ask-submit" type="submit">Send</button>
+            </form>
+            </div>
           </div>
         </section>
 

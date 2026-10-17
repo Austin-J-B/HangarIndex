@@ -18,6 +18,7 @@
   let savedAnswers = [];
   let busy = false;
   let askHistory = [];
+  let turnNumber = 0;
 
   const SUGGESTED = [
     'Can I strip paint off a high-strength steel landing gear part the same way as an aluminium panel?',
@@ -141,26 +142,48 @@
   }
 
   function renderAnswerText(text, sources) {
+    const background = String(text).match(/(?:^|\n)(?:#{1,3}\s*)?(?:\*\*)?General background(?:\s*\([^\n)]*\))?(?:\*\*)?\s*:?(?:\*\*)?\s*(?:\n|$)/i);
+    if (background) {
+      const documentText = String(text).slice(0, background.index);
+      const ideas = String(text).slice(background.index + background[0].length).replace(/\[S\d+(?:\s*[,;]\s*S\d+)*\]/g, '');
+      return renderAnswerText(documentText, sources)
+        + `<aside class="ask-ideas" aria-label="Unverified ideas to investigate"><h3>Unverified ideas to investigate</h3>`
+        + `<p class="ask-ideas-note">General model knowledge · Not verified against the library. Check current manufacturer and approved task data.</p>`
+        + renderAnswerText(ideas, []) + '</aside>';
+    }
     const ids = new Map(sources.map((s) => [s.id, s]));
-    const blocks = String(text).split(/\n{2,}/);
+    // Escape first; support the small Markdown vocabulary used in answers without accepting HTML.
+    const inline = (value) => esc(value).replace(/(`[^`\n]+`)|\*\*(.+?)\*\*|\*([^*\n]+)\*/g,
+      (m, code, bold, italic) => code ? `<code>${code.slice(1, -1)}</code>`
+        : bold ? `<strong>${bold}</strong>` : `<em>${italic}</em>`)
+      .replace(/\[(S\d+(?:\s*[,;]\s*S\d+)*)\]/g, (m, group) => group.split(/[;,]/).map((v) => {
+        const id = v.trim();
+        return ids.has(id) ? `<button type="button" class="ask-cite" data-cite="${id}">${id}</button>`
+          : `<span class="ask-cite bad" title="Unknown source">${id}</span>`;
+      }).join(' '));
+    const blocks = String(text).replace(/\r\n/g, '\n')
+      .replace(/\n(?=(?:#{1,3}\s*|\*\*)?(?:Warnings? from|Watch out|Where to look|Not covered|Also worth knowing|From your documents|General background|Where sources differ)\b)/gi, '\n\n')
+      .split(/\n{2,}/);
     return blocks.map((block) => {
       const where = renderWhereToLook(block, ids);
       if (where !== null) return where;
       const heading = block.match(/^(?:[-*+]\s+)?(?:#{1,3}\s*)?(?:\*\*)?(Direct answer|Answer|From your documents|General background \(not from your documents; verify against approved data\)|Warnings? from (?:the )?source documents?(?: on this topic)?|Watch out|Also worth knowing|Where sources differ|Not covered|Where to look)(?:\*\*)?:?(?:\*\*)?\s*/i);
-      let html = esc(block);
+      let section = '';
       if (heading) {
         const rawLabel = heading[1];
         const label = /^answer$/i.test(rawLabel) ? 'Direct answer'
           : /^warnings?/i.test(rawLabel) ? 'Warnings from the source documents on this topic'
             : rawLabel;
-        const section = /^(?:direct answer|answer)$/i.test(rawLabel)
+        section = /^(?:direct answer|answer)$/i.test(rawLabel)
           ? '' : `<span class="ask-section">${esc(label)}</span>`;
-        html = section + esc(block.slice(heading[0].length));
+        block = block.slice(heading[0].length);
       }
-      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      html = html.replace(/\[(S\d+)\]/g, (m, id) => (ids.has(id)
-        ? `<button type="button" class="ask-cite" data-cite="${id}">${id}</button>` : `<span class="ask-cite bad" title="Unknown source">${id}</span>`));
-      return `<p>${html.replace(/\n/g, '<br>')}</p>`;
+      const lines = block.trim().split('\n');
+      const list = lines.length && lines.every((line) => /^\s*(?:[-*+]\s+|\d+[.)]\s+)/.test(line));
+      const tag = /^\s*\d+[.)]/.test(lines[0]) ? 'ol' : 'ul';
+      return section + (list
+        ? `<${tag}>${lines.map((line) => `<li>${inline(line.replace(/^\s*(?:[-*+]\s+|\d+[.)]\s+)/, ''))}</li>`).join('')}</${tag}>`
+        : block.trim() ? `<p>${inline(block).replace(/\n/g, '<br>')}</p>` : '');
     }).join('');
   }
 
@@ -180,8 +203,8 @@
         ? `<a href="${esc(link.href)}" ${actionAttrs}>${actionLabel}</a>`
         : '<span class="muted">Not in public library</span>';
       const title = link.label || s.title || s.name || s.doc_name || 'Source document';
-      return `<article class="ask-source" id="ask-src-${esc(s.id)}">
-        <header><span class="ask-cite static">${esc(s.id)}</span><div style="min-width:0;flex:1"><strong>${esc(title)}</strong><small style="display:block;margin-top:3px;color:#89969a;font-size:9px;overflow-wrap:anywhere">${esc(filename)}</small></div>${s.caution_source ? '<em>Caution</em>' : ''}</header>
+      return `<article class="ask-source" data-source="${esc(s.id)}">
+        <header><span class="ask-cite static">${esc(s.id)}</span><div style="min-width:0;flex:1"><strong>${esc(title)}</strong><small style="display:block;margin-top:3px;color:#71808b;font-size:12px;overflow-wrap:anywhere">${esc(filename)}</small></div>${s.caution_source ? '<em>Caution</em>' : ''}</header>
         <div class="ask-excerpt">${highlight(centerExcerpt(s.excerpt || '', terms), terms)}</div>
         ${s.is_ocr ? '<small class="ocr-page-note">Scanned page · text may contain recognition errors</small>' : ''}
         <footer><span>${where}${link.hosted ? '' : ' · link only'}</span>${open}</footer></article>`;
@@ -191,7 +214,7 @@
       ? `<div class="ask-sources-more" hidden>${cards.slice(shown).join('')}</div>`
         + `<button type="button" class="ask-sources-toggle" aria-expanded="false">Show all ${cards.length} sources</button>`
       : '';
-    return `<div class="ask-sources"><h3>Sources</h3>${cards.slice(0, shown).join('')}${more}</div>`;
+    return `<details class="ask-sources"><summary>Sources · ${cards.length} passage${cards.length === 1 ? '' : 's'}</summary>${cards.slice(0, shown).join('')}${more}</details>`;
   }
 
   function setSourcesExpanded(list, open) {
@@ -210,7 +233,8 @@
     }));
     container.querySelectorAll('[data-cite]').forEach((b) => b.addEventListener('click', () => {
       const turn = b.closest('.ask-turn');
-      const card = (turn && turn.querySelector('#ask-src-' + CSS.escape(b.dataset.cite))) || $('ask-src-' + b.dataset.cite);
+      const card = turn?.querySelector('[data-source="' + CSS.escape(b.dataset.cite) + '"]');
+      if (card) card.closest('.ask-sources').open = true;
       if (card && card.closest('.ask-sources-more')?.hidden) setSourcesExpanded(card.closest('.ask-sources'), true);
       if (card) { card.classList.add('flash'); card.scrollIntoView({behavior: 'smooth', block: 'center'}); setTimeout(() => card.classList.remove('flash'), 1400); }
     }));
@@ -219,9 +243,19 @@
   function turnShell(question, label) {
     const turn = document.createElement('section');
     turn.className = 'ask-turn';
-    turn.innerHTML = `<p class="ask-q">${esc(question)}</p><div class="ask-search-query"></div><div class="ask-meta">${esc(label)}</div><div class="ask-body"><p class="ask-wait">Searching the library…</p></div>`;
+    turn.id = `ask-turn-${++turnNumber}`;
+    turn.innerHTML = `<div class="ask-user" aria-label="You"><span class="ask-role">You</span><p class="ask-q">${esc(question)}</p></div>
+      <div class="ask-assistant" aria-label="HangarIndex"><div class="ask-reply-head"><strong>HangarIndex</strong><span class="ask-meta">${esc(label)}</span></div>
+      <div class="ask-search-query"></div><div class="ask-body"><p class="ask-wait" role="status">Searching the library…</p></div></div>`;
     $('ask-thread').append(turn);
     return turn;
+  }
+
+  function showSearchQueries(turn, queries, fallback) {
+    const actual = [...new Set((Array.isArray(queries) && queries.length ? queries : [fallback])
+      .filter((query) => typeof query === 'string' && query.trim()).map((query) => query.trim()))];
+    turn.querySelector('.ask-search-query').textContent = actual.length
+      ? `Searched for: ${actual.map((query) => `“${query}”`).join(' · ')}` : '';
   }
 
   function boundedHistory(history) {
@@ -238,46 +272,26 @@
 
   function updateThreadControls() {
     const controls = $('ask-thread-controls');
-    const form = $('ask-form');
-    controls.hidden = askHistory.length === 0;
-    if (!askHistory.length) {
-      $('ask-thread-guidance').textContent = 'Ask a follow-up';
-      $('ask-suggestions').before(form);
-      $('ask-suggestions').hidden = false;
-      $('ask-input').disabled = false;
-      $('ask-submit').disabled = false;
-      $('ask-submit').textContent = 'Ask';
-      return;
-    }
-    // Follow-up box sits directly under the latest answer, above its sources.
-    const answers = $('ask-thread').querySelectorAll('.ask-answer');
-    const latest = answers[answers.length - 1];
-    if (latest) latest.after(controls); else $('ask-thread').after(controls);
-    controls.after(form);
-    $('ask-suggestions').hidden = true;
+    const hasTurns = $('ask-thread').childElementCount > 0;
+    controls.hidden = !hasTurns;
+    $('ask-suggestions').hidden = hasTurns;
     const atLimit = askHistory.length >= 5;
     $('ask-thread-guidance').textContent = atLimit
-      ? 'Four follow-ups reached. Start a new question to continue.'
-      : 'Ask a follow-up';
-    $('ask-input').placeholder = atLimit ? 'Start a new question to continue…' : 'Ask a follow-up…';
-    $('ask-input').disabled = atLimit;
-    $('ask-submit').disabled = atLimit;
-    $('ask-submit').textContent = atLimit ? 'New question required' : 'Ask a follow-up';
+      ? 'Conversation limit reached. Start a new chat to continue.' : 'Enter to send · Shift+Enter for a new line';
+    $('ask-input').placeholder = atLimit ? 'Start a new chat to continue…' : askHistory.length ? 'Ask a follow-up…' : 'Ask the library…';
+    $('ask-input').disabled = atLimit || busy;
+    $('ask-submit').disabled = atLimit || busy;
+    $('ask-submit').textContent = busy ? 'Answering…' : 'Send';
+    $('ask-new-question').disabled = busy;
+    $('ask-category').disabled = busy;
   }
 
   function resetThread() {
+    if (busy) return;
     askHistory = [];
-    // The follow-up box lives inside the latest turn; move it out before clearing the thread.
-    $('ask-thread').after($('ask-thread-controls'));
     $('ask-thread').replaceChildren();
-    $('ask-thread-controls').hidden = true;
-    $('ask-suggestions').hidden = false;
-    $('ask-suggestions').before($('ask-form'));
     $('ask-input').value = '';
-    $('ask-input').placeholder = 'Ask a question in plain words, e.g. can I use acid stripper on a steel bracket?';
-    $('ask-input').disabled = false;
-    $('ask-submit').disabled = false;
-    $('ask-submit').textContent = 'Ask';
+    updateThreadControls();
     $('ask-input').focus();
   }
 
@@ -302,7 +316,8 @@
     }
     const a = best[1];
     const sources = (a.sources || []).map((s) => ({...s, name: s.doc_name}));
-    meta.textContent = `${reason} · saved answer to “${a.query}” · ${a.model || a.generated_by || ''}`;
+    const savedLabel = question === a.query ? 'Saved answer' : `Saved answer to “${a.query}”`;
+    meta.textContent = `${reason === 'Saved answer' ? '' : reason + ' · '}${savedLabel} · ${a.model || a.generated_by || ''}`;
     body.innerHTML = renderAnswerText(a.answer, sources) + renderSources(sources, (a.highlight_terms || question.split(/\s+/)));
     bindCites(body);
   }
@@ -314,75 +329,89 @@
     // Idle watchdog, not a total limit: queue and token events keep it alive, so waiting in line never times out.
     let timeout = setTimeout(() => ctrl.abort(), 120000);
     const alive = () => { clearTimeout(timeout); timeout = setTimeout(() => ctrl.abort(), 120000); };
-    const r = await fetch(apiBase + '/api/ask/stream', {
-      method: 'POST', mode: localPreviewApiBase() ? 'same-origin' : 'cors', signal: ctrl.signal,
-      headers: {'Content-Type': 'application/json', ...authHeaders()},
-      body: JSON.stringify({question, category: $('ask-category')?.value || 'All', history}),
-    });
-    if (r.status === 401) { clearTimeout(timeout); needCode(); throw new Error('locked'); }
-    if (r.status === 403) { clearTimeout(timeout); throw new Error('http 403'); }
-    if (r.status === 429) { clearTimeout(timeout); throw new Error('busy'); }
-    if (!r.ok || !r.body) { clearTimeout(timeout); throw new Error('http ' + r.status); }
-    const reader = r.body.getReader();
-    const dec = new TextDecoder();
-    let buf = ''; let text = ''; let sources = []; let terms = []; let searched = ''; let finished = false;
-    const answerEl = document.createElement('div'); answerEl.className = 'ask-answer streaming';
-    const sourcesEl = document.createElement('div');
-    body.replaceChildren(answerEl, sourcesEl);
-    for (;;) {
-      const {value, done} = await reader.read();
-      if (done) break;
-      alive();
-      buf += dec.decode(value, {stream: true});
-      let cut;
-      while ((cut = buf.indexOf('\n\n')) >= 0) {
-        const line = buf.slice(0, cut).trim(); buf = buf.slice(cut + 2);
-        if (!line.startsWith('data:')) continue;
-        let ev; try { ev = JSON.parse(line.slice(5)); } catch (e) { continue; }
-        if (ev.type === 'query') {
-          searched = String(ev.query || '');
-          turn.querySelector('.ask-search-query').textContent = searched ? `Searched for: ${searched}` : '';
-        } else if (ev.type === 'meta') {
-          sources = ev.data.sources || []; terms = ev.data.highlight_terms || [];
-          searched = ev.data.search_query || searched;
-          turn.querySelector('.ask-search-query').textContent = searched ? `Searched for: ${searched}` : '';
-          meta.textContent = `Live assistant · ${ev.data.llm?.model || 'local model'}`;
-          sourcesEl.innerHTML = renderSources(sources, terms); bindCites(sourcesEl);
-          if (ev.data.answer) text = ev.data.answer;
-        } else if (ev.type === 'queue') {
-          const n = Number(ev.position);
-          const ord = (k) => k + (['th', 'st', 'nd', 'rd'][(k % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][k % 100] || 'th');
-          if (n > 0) meta.textContent = `Waiting for the assistant: you are ${ord(n)} in line`;
-          continue;
-        } else if (ev.type === 'token') {
-          text += ev.text;
-        } else if (ev.type === 'done') {
-          finished = true;
-          if (ev.answer) text = ev.answer;
-          answerEl.classList.remove('streaming');
-          const bad = ev.citation_check && ev.citation_check.uncited_sentences ? ev.citation_check.uncited_sentences.length : 0;
-          if (bad) meta.textContent += ` · ${bad} sentence${bad > 1 ? 's' : ''} without a valid citation`;
-        } else if (ev.type === 'error') {
-          throw new Error(ev.detail || 'error');
+    try {
+      const r = await fetch(apiBase + '/api/ask/stream', {
+        method: 'POST', mode: localPreviewApiBase() ? 'same-origin' : 'cors', signal: ctrl.signal,
+        headers: {'Content-Type': 'application/json', ...authHeaders()},
+        body: JSON.stringify({question, category: $('ask-category')?.value || 'All', history}),
+      });
+      if (r.status === 401) { clearTimeout(timeout); needCode(); throw new Error('locked'); }
+      if (r.status === 403) { clearTimeout(timeout); throw new Error('http 403'); }
+      if (r.status === 429) { clearTimeout(timeout); throw new Error('busy'); }
+      if (!r.ok || !r.body) { clearTimeout(timeout); throw new Error('http ' + r.status); }
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = ''; let text = ''; let sources = []; let terms = []; let searched = ''; let finished = false;
+      const answerEl = document.createElement('div'); answerEl.className = 'ask-answer';
+      answerEl.innerHTML = '<p class="ask-wait" role="status">Searching the library…</p>';
+      const sourcesEl = document.createElement('div');
+      body.replaceChildren(answerEl, sourcesEl);
+      for (;;) {
+        const {value, done} = await reader.read();
+        if (done) break;
+        alive();
+        buf += dec.decode(value, {stream: true});
+        let cut;
+        while ((cut = buf.indexOf('\n\n')) >= 0) {
+          const line = buf.slice(0, cut).trim(); buf = buf.slice(cut + 2);
+          if (!line.startsWith('data:')) continue;
+          let ev; try { ev = JSON.parse(line.slice(5)); } catch (e) { continue; }
+          if (ev.type === 'query') {
+            searched = String(ev.query || '');
+            showSearchQueries(turn, ev.retrieval_queries, searched);
+            if (!text) answerEl.innerHTML = '<p class="ask-wait" role="status">Searching the library…</p>';
+          } else if (ev.type === 'meta') {
+            sources = ev.data.sources || []; terms = ev.data.highlight_terms || [];
+            searched = ev.data.search_query || searched;
+            showSearchQueries(turn, ev.data.retrieval_queries, searched);
+            meta.textContent = `Live assistant · ${ev.data.llm?.model || 'local model'}`;
+            sourcesEl.innerHTML = renderSources(sources, terms); bindCites(sourcesEl);
+            if (ev.data.answer) text = ev.data.answer;
+          } else if (ev.type === 'queue') {
+            const n = Number(ev.position);
+            const ord = (k) => k + (['th', 'st', 'nd', 'rd'][(k % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][k % 100] || 'th');
+            if (n > 0) {
+              meta.textContent = `Waiting for the assistant: you are ${ord(n)} in line`;
+              answerEl.innerHTML = '<p class="ask-wait" role="status">Your message is queued…</p>';
+            }
+            continue;
+          } else if (ev.type === 'token') {
+            text += ev.text;
+            answerEl.classList.add('streaming');
+          } else if (ev.type === 'done') {
+            finished = true;
+            if (ev.answer) text = ev.answer;
+            answerEl.classList.remove('streaming');
+            const bad = ev.citation_check && ev.citation_check.uncited_sentences ? ev.citation_check.uncited_sentences.length : 0;
+            if (bad) meta.textContent += ` · ${bad} sentence${bad > 1 ? 's' : ''} without a valid citation`;
+          } else if (ev.type === 'error') {
+            throw new Error(ev.detail || 'error');
+          }
+          if (text) { answerEl.innerHTML = renderAnswerText(text, sources); bindCites(answerEl); }
+          else if (ev.type === 'meta') answerEl.innerHTML = '<p class="ask-wait" role="status">Writing an answer from the sources…</p>';
         }
-        answerEl.innerHTML = renderAnswerText(text, sources); bindCites(answerEl);
       }
-    }
-    clearTimeout(timeout);
-    answerEl.classList.remove('streaming');
-    if (!finished) throw new Error('stream ended before completion');
-    return {answer:text, sources};
+      clearTimeout(timeout);
+      answerEl.classList.remove('streaming');
+      if (!finished) throw new Error('stream ended before completion');
+      return {answer:text, sources};
+    } finally { clearTimeout(timeout); }
   }
 
   async function ask(question) {
     question = question.trim();
     if (!question || busy || askHistory.length >= 5) return;
-    busy = true; $('ask-submit').disabled = true;
+    busy = true;
+    $('ask-input').value = '';
     const turn = turnShell(question, online ? 'Live assistant' : 'Saved answers');
+    turn.querySelector('.ask-assistant').setAttribute('aria-busy', 'true');
+    updateThreadControls();
+    turn.scrollIntoView({behavior: 'smooth', block: 'start'});
     try {
       if (online) {
         const result = await answerLive(question, turn, boundedHistory(askHistory));
-        const cited = new Set((result.answer.match(/\[(S\d+)\]/g) || []).map((id) => id.slice(1, -1)));
+        const cited = new Set([...result.answer.matchAll(/\[(S\d+(?:\s*[,;]\s*S\d+)*)\]/g)]
+          .flatMap((match) => match[1].split(/[;,]/).map((id) => id.trim())));
         const used = result.sources.filter((source) => cited.has(source.id));
         askHistory.push({question, answer:result.answer, source_ids:used.map((source) => source.id),
           passage_refs:used.map((source) => source.passage_ref).filter((ref) => Number.isInteger(ref)
@@ -405,8 +434,9 @@
       }
     } finally {
       busy = false;
-      if (askHistory.length) updateThreadControls();
-      else $('ask-submit').disabled = false;
+      turn.querySelector('.ask-assistant').setAttribute('aria-busy', 'false');
+      updateThreadControls();
+      if (!$('ask-input').disabled) $('ask-input').focus({preventScroll: true});
     }
   }
 
@@ -423,7 +453,7 @@
       if (!online) showOffline(apiBase ? 'The assistant server is not running right now. Saved answers from earlier runs are below.'
         : 'This copy of the site is not connected to a live assistant. Saved answers from earlier runs are below.');
     });
-    $('ask-input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask($('ask-input').value); } });
+    $('ask-input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask($('ask-input').value); } });
     const code = $('ask-code');
     code.value = store.get();
     $('ask-code-form').addEventListener('submit', (e) => { e.preventDefault(); store.set(code.value.trim()); checkOnline(); });
@@ -433,6 +463,7 @@
       const a = savedAnswers[Number(b.dataset.saved)];
       const turn = turnShell(a.query, 'Saved answer');
       answerOffline(a.query, turn, 'Saved answer');
+      updateThreadControls();
       turn.scrollIntoView({behavior: 'smooth', block: 'start'});
     });
     loadData().then(checkOnline);
