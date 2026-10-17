@@ -6,7 +6,7 @@
   let docsMap = {};
   let docsByFilename = {};
   let answersList = [];
-  let chunksData = [];
+  let searchIndexPromise = null;
   let currentWorkstreamFilter = 'all';
   let apiBase = '';
   let searchRequestId = 0;
@@ -45,6 +45,25 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  function isWordDocument(filename) {
+    return /\.(docx?|rtf)$/i.test(String(filename || '').split(/[?#]/, 1)[0]);
+  }
+
+  function hostedActionLabel(filename) {
+    const clean = String(filename || '').split(/[?#]/, 1)[0];
+    if (/\.pdf$/i.test(clean)) return 'Open PDF ↗';
+    if (isWordDocument(clean)) return 'Download Word file ↓';
+    return 'Open file ↗';
+  }
+
+  function hostedActionAttributes(filename) {
+    return isWordDocument(filename) ? 'download' : 'target="_blank" rel="noopener noreferrer"';
+  }
+
+  function hostedPillLabel(filename) {
+    return /\.pdf$/i.test(String(filename || '').split(/[?#]/, 1)[0]) ? 'HOSTED PDF' : 'HOSTED FILE';
   }
 
   function localPreviewApiBase() { return ''; }
@@ -235,11 +254,6 @@
       return;
     }
 
-    if (!miniSearch) {
-      dom.searchMessage.textContent = 'Index is loading…';
-      return;
-    }
-
     const t0 = performance.now();
     let fallbackReason = '';
     if (apiBase) {
@@ -275,6 +289,18 @@
         clearTimeout(timeout);
         if (activeSearch === controller) activeSearch = null;
       }
+    }
+
+    if (!miniSearch) {
+      try {
+        dom.searchMessage.textContent = 'Preparing local passage search…';
+        await ensureSearchIndex();
+      } catch (err) {
+        if (requestId !== searchRequestId) return;
+        dom.searchMessage.textContent = `Could not load the local passage index: ${err.message}`;
+        return;
+      }
+      if (requestId !== searchRequestId) return;
     }
 
     const rawResults = miniSearch.search(q, {
@@ -345,6 +371,8 @@
         : (doc.officialUrl || hit.officialUrl || '');
 
       const pageLabel = hit.page ? `Page ${hit.page}` : 'Section';
+      const actionLabel = isHosted ? hostedActionLabel(filename) : 'Official Link ↗';
+      const actionAttributes = isHosted ? hostedActionAttributes(filename) : 'target="_blank" rel="noopener noreferrer"';
       const excerptRaw = buildCenteredExcerpt(hit.text, queryTerms, 340);
       const excerptHtml = highlightTerms(excerptRaw, queryTerms);
 
@@ -360,7 +388,7 @@
             </div>
             <div class="result-meta-right">
               <span>${pageLabel}</span>
-              ${openTarget ? `<a class="result-open-link" href="${escapeHtml(openTarget)}" target="_blank" rel="noopener noreferrer">${isHosted ? 'Open PDF ↗' : 'Official Link ↗'}</a>` : '<span class="result-open-link muted">No public link</span>'}
+              ${openTarget ? `<a class="result-open-link" href="${escapeHtml(openTarget)}" ${actionAttributes}>${actionLabel}</a>` : '<span class="result-open-link muted">No public link</span>'}
             </div>
           </div>
           <p class="result-excerpt">${excerptHtml}</p>
@@ -393,6 +421,63 @@
     }
   }
 
+  function ensureSearchIndex() {
+    if (miniSearch) return Promise.resolve(miniSearch);
+    if (!searchIndexPromise) {
+      searchIndexPromise = (async () => {
+        const response = await fetch('data/chunks.json');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const records = await response.json();
+        if (!Array.isArray(records) || records.length === 0) {
+          throw new Error('The passage file is empty or invalid.');
+        }
+
+        const index = new MiniSearch({
+          fields: ['title', 'docName', 'text'],
+          storeFields: ['id', 'docName', 'title', 'subfolder', 'tag', 'page', 'redistribute', 'officialUrl', 'text'],
+          searchOptions: {
+            boost: { title: 3, docName: 2, text: 1 },
+            prefix: true,
+            fuzzy: 0.15
+          }
+        });
+
+        await new Promise((resolve, reject) => {
+          let offset = 0;
+          const batchSize = 100;
+          const schedule = (callback) => {
+            if (window.requestIdleCallback) window.requestIdleCallback(callback, {timeout: 150});
+            else window.setTimeout(callback, 0);
+          };
+          const addBatch = () => {
+            try {
+              const stopAt = Math.min(offset + batchSize, records.length);
+              index.addAll(records.slice(offset, stopAt));
+              offset = stopAt;
+              if (offset < records.length) {
+                const progress = Math.floor(offset / records.length * 100);
+                dom.searchMessage.textContent = `Building local passage search… ${progress}%`;
+                schedule(addBatch);
+              } else {
+                resolve();
+              }
+            } catch (error) {
+              reject(error);
+            }
+          };
+          schedule(addBatch);
+        });
+
+        miniSearch = index;
+        return miniSearch;
+      })().catch((error) => {
+        searchIndexPromise = null;
+        throw error;
+      });
+    }
+    return searchIndexPromise;
+  }
+
   function answerHasCategory(answer, category) {
     return category === 'All' || (answer.sources || []).some(source => {
       const doc = docsMap[source.doc_name] || docsMap[source.filename] || {};
@@ -409,11 +494,12 @@
     let sourcesHtml = '';
     (ans.sources || []).forEach(src => {
       const isHosted = src.is_hosted;
+      const filename = src.filename || src.doc_name || src.name || src.open_url || '';
       const statusPill = isHosted
-        ? '<span class="hosted-pill" style="font-size:7px;padding:1px 5px;">HOSTED PDF</span>'
+        ? `<span class="hosted-pill" style="font-size:7px;padding:1px 5px;">${hostedPillLabel(filename)}</span>`
         : '<span class="linkonly-pill" style="font-size:7px;padding:1px 5px;">LINK-ONLY</span>';
       const actionLink = isHosted
-        ? `<a href="${escapeHtml(src.open_url)}" target="_blank" rel="noopener noreferrer">Open PDF ↗</a>`
+        ? `<a href="${escapeHtml(src.open_url)}" ${hostedActionAttributes(filename)}>${hostedActionLabel(filename)}</a>`
         : (src.open_url ? `<a href="${escapeHtml(src.open_url)}" target="_blank" rel="noopener noreferrer">Official Link ↗</a>` : '<span style="color:#8b999f;font-size:10px;">Catalog Record</span>');
 
       sourcesHtml += `
@@ -506,11 +592,12 @@
     let sourcesHtml = '';
     (ans.sources || []).forEach(src => {
       const isHosted = src.is_hosted;
+      const filename = src.filename || src.doc_name || src.name || src.open_url || '';
       const statusPill = isHosted
-        ? '<span class="hosted-pill" style="font-size:7px;padding:1px 5px;">HOSTED PDF</span>'
+        ? `<span class="hosted-pill" style="font-size:7px;padding:1px 5px;">${hostedPillLabel(filename)}</span>`
         : '<span class="linkonly-pill" style="font-size:7px;padding:1px 5px;">LINK-ONLY</span>';
       const actionLink = isHosted
-        ? `<a href="${escapeHtml(src.open_url)}" target="_blank" rel="noopener noreferrer">Open PDF ↗</a>`
+        ? `<a href="${escapeHtml(src.open_url)}" ${hostedActionAttributes(filename)}>${hostedActionLabel(filename)}</a>`
         : (src.open_url ? `<a href="${escapeHtml(src.open_url)}" target="_blank" rel="noopener noreferrer">Official Link ↗</a>` : '<span style="color:#8b999f;font-size:10px;">Catalog Record</span>');
 
       sourcesHtml += `
@@ -597,7 +684,9 @@
       const isHosted = d.redistribute === 'yes';
       const openTarget = isHosted ? `docs/${d.subfolder}/${d.filename}` : d.officialUrl;
       const pillClass = isHosted ? 'hosted-pill' : 'linkonly-pill';
-      const pillLabel = isHosted ? 'HOSTED PDF' : 'OFFICIAL LINK';
+      const pillLabel = isHosted ? hostedPillLabel(d.filename) : 'OFFICIAL LINK';
+      const actionAttributes = isHosted ? hostedActionAttributes(d.filename) : 'target="_blank" rel="noopener noreferrer"';
+      const actionLabel = isHosted ? hostedActionLabel(d.filename) : 'Official link ↗';
 
       return `
         <tr>
@@ -609,8 +698,8 @@
           <td>${escapeHtml(d.authority)}</td>
           <td><span class="${pillClass}">${pillLabel}</span></td>
           <td>
-            <a href="${escapeHtml(openTarget)}" target="_blank" rel="noopener noreferrer" style="color:#3c705b;font-weight:600;text-decoration:none;">
-              Open ↗
+            <a href="${escapeHtml(openTarget)}" ${actionAttributes} style="color:#3c705b;font-weight:600;text-decoration:none;">
+              ${actionLabel}
             </a>
           </td>
         </tr>`;
@@ -730,19 +819,17 @@
   // Initialize Data
   async function initApp() {
     try {
-      const [configResp, docsResp, chunksResp, answersResp] = await Promise.all([
+      const [configResp, docsResp, answersResp] = await Promise.all([
         fetch('config.json', {cache: 'no-store'}).catch(() => ({ok: false})),
         fetch('data/docs.json'),
-        fetch('data/chunks.json'),
         fetch('data/answers.json').catch(() => ({ ok: false }))
       ]);
 
-      if (!docsResp.ok || !chunksResp.ok) {
-        throw new Error('Failed to load static index data manifests.');
+      if (!docsResp.ok) {
+        throw new Error('Failed to load the static document catalog.');
       }
 
       const docsData = await docsResp.json();
-      chunksData = await chunksResp.json();
       const configData = configResp.ok ? await configResp.json().catch(() => ({})) : {};
       apiBase = resolveApiBase(configData.apiBase);
 
@@ -776,19 +863,6 @@
 
       // Render Library table
       renderLibrary(docsData);
-
-      // Initialize MiniSearch over chunked passages
-      miniSearch = new MiniSearch({
-        fields: ['title', 'docName', 'text'],
-        storeFields: ['id', 'docName', 'title', 'subfolder', 'tag', 'page', 'redistribute', 'officialUrl', 'text'],
-        searchOptions: {
-          boost: { title: 3, docName: 2, text: 1 },
-          prefix: true,
-          fuzzy: 0.15
-        }
-      });
-
-      miniSearch.addAll(chunksData);
 
       if (dom.modelLabel) {
         dom.modelLabel.textContent = 'Document Index';

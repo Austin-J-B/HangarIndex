@@ -145,11 +145,17 @@
     return '<div class="ask-sources"><h3>Sources</h3>' + sources.map((s) => {
       const link = sourceLink(s);
       const where = s.page ? `Page ${esc(s.page)}` : 'Location in document';
+      const filename = s.filename || link.doc?.filename || s.name || s.doc_name || link.href || '';
+      const cleanFilename = String(filename).split(/[?#]/, 1)[0];
+      const isWordDocument = /\.(docx?|rtf)$/i.test(cleanFilename);
+      const isPdf = /\.pdf$/i.test(cleanFilename);
+      const actionLabel = !link.hosted ? 'Official source ↗'
+        : (isWordDocument ? 'Download Word file ↓' : (isPdf ? 'Open PDF ↗' : 'Open file ↗'));
+      const actionAttrs = link.hosted && isWordDocument ? 'download' : 'target="_blank" rel="noopener"';
       const open = link.href
-        ? `<a href="${esc(link.href)}" target="_blank" rel="noopener">${link.hosted ? 'Open PDF' : 'Official source'} ↗</a>`
+        ? `<a href="${esc(link.href)}" ${actionAttrs}>${actionLabel}</a>`
         : '<span class="muted">Not in public library</span>';
       const title = link.label || s.title || s.name || s.doc_name || 'Source document';
-      const filename = s.filename || link.doc?.filename || s.name || s.doc_name || '';
       return `<article class="ask-source" id="ask-src-${esc(s.id)}">
         <header><span class="ask-cite static">${esc(s.id)}</span><div style="min-width:0;flex:1"><strong>${esc(title)}</strong><small style="display:block;margin-top:3px;color:#89969a;font-size:9px;overflow-wrap:anywhere">${esc(filename)}</small></div>${s.caution_source ? '<em>Caution</em>' : ''}</header>
         <div class="ask-excerpt">${highlight(centerExcerpt(s.excerpt || '', terms), terms)}</div>
