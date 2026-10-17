@@ -33,7 +33,10 @@
     el.querySelector('span').textContent = text;
   }
 
-  function localPreviewApiBase() { return ''; }
+  function localPreviewApiBase() {
+    return location.protocol === 'http:' && location.hostname === '127.0.0.1' && location.port === '8333'
+      ? location.origin : '';
+  }
 
   async function loadData() {
     const [cfg, docs, answers] = await Promise.all([
@@ -142,7 +145,7 @@
 
   function renderSources(sources, terms) {
     if (!sources.length) return '';
-    return '<div class="ask-sources"><h3>Sources</h3>' + sources.map((s) => {
+    const cards = sources.map((s) => {
       const link = sourceLink(s);
       const where = s.page ? `Page ${esc(s.page)}` : 'Location in document';
       const filename = s.filename || link.doc?.filename || s.name || s.doc_name || link.href || '';
@@ -161,12 +164,33 @@
         <div class="ask-excerpt">${highlight(centerExcerpt(s.excerpt || '', terms), terms)}</div>
         ${s.is_ocr ? '<small class="ocr-page-note">Scanned page · text may contain recognition errors</small>' : ''}
         <footer><span>${where}${link.hosted ? '' : ' · link only'}</span>${open}</footer></article>`;
-    }).join('') + '</div>';
+    });
+    const shown = 3;
+    const more = cards.length > shown
+      ? `<div class="ask-sources-more" hidden>${cards.slice(shown).join('')}</div>`
+        + `<button type="button" class="ask-sources-toggle" aria-expanded="false">Show all ${cards.length} sources</button>`
+      : '';
+    return `<div class="ask-sources"><h3>Sources</h3>${cards.slice(0, shown).join('')}${more}</div>`;
+  }
+
+  function setSourcesExpanded(list, open) {
+    const more = list.querySelector('.ask-sources-more');
+    const toggle = list.querySelector('.ask-sources-toggle');
+    if (!more || !toggle) return;
+    more.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.textContent = open ? 'Show top 3 sources' : `Show all ${list.querySelectorAll('.ask-source').length} sources`;
   }
 
   function bindCites(container) {
+    container.querySelectorAll('.ask-sources-toggle').forEach((t) => t.addEventListener('click', () => {
+      const list = t.closest('.ask-sources');
+      setSourcesExpanded(list, list.querySelector('.ask-sources-more').hidden);
+    }));
     container.querySelectorAll('[data-cite]').forEach((b) => b.addEventListener('click', () => {
-      const card = $('ask-src-' + b.dataset.cite);
+      const turn = b.closest('.ask-turn');
+      const card = (turn && turn.querySelector('#ask-src-' + CSS.escape(b.dataset.cite))) || $('ask-src-' + b.dataset.cite);
+      if (card && card.closest('.ask-sources-more')?.hidden) setSourcesExpanded(card.closest('.ask-sources'), true);
       if (card) { card.classList.add('flash'); card.scrollIntoView({behavior: 'smooth', block: 'center'}); setTimeout(() => card.classList.remove('flash'), 1400); }
     }));
   }
@@ -204,7 +228,10 @@
       $('ask-submit').textContent = 'Ask';
       return;
     }
-    $('ask-thread').after(controls);
+    // Follow-up box sits directly under the latest answer, above its sources.
+    const answers = $('ask-thread').querySelectorAll('.ask-answer');
+    const latest = answers[answers.length - 1];
+    if (latest) latest.after(controls); else $('ask-thread').after(controls);
     controls.after(form);
     $('ask-suggestions').hidden = true;
     const atLimit = askHistory.length >= 5;
@@ -219,6 +246,8 @@
 
   function resetThread() {
     askHistory = [];
+    // The follow-up box lives inside the latest turn; move it out before clearing the thread.
+    $('ask-thread').after($('ask-thread-controls'));
     $('ask-thread').replaceChildren();
     $('ask-thread-controls').hidden = true;
     $('ask-suggestions').hidden = false;
