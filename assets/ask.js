@@ -33,10 +33,7 @@
     el.querySelector('span').textContent = text;
   }
 
-  function localPreviewApiBase() {
-    return location.protocol === 'http:' && location.hostname === '127.0.0.1' && location.port === '8333'
-      ? location.origin : '';
-  }
+  function localPreviewApiBase() { return ''; }
 
   async function loadData() {
     const [cfg, docs, answers] = await Promise.all([
@@ -121,11 +118,35 @@
     return {href: doc.officialUrl || '', label: doc.title || doc.filename, hosted: false, doc};
   }
 
+  // Where to look: list each cited source from its metadata (title, file, page)
+  // instead of the model's free-text locations.
+  function renderWhereToLook(block, ids) {
+    const heading = block.match(/^\s*(?:[-*+]\s+)?(?:#{1,3}\s*)?(?:\*\*)?Where to look(?:\*\*)?:?(?:\*\*)?\s*/i);
+    if (!heading) return null;
+    const cited = [];
+    for (const m of block.slice(heading[0].length).matchAll(/\[(S\d+(?:\s*[,;]\s*S\d+)*)\]/g)) {
+      m[1].split(/[;,]/).map((v) => v.trim()).forEach((id) => { if (ids.has(id) && !cited.includes(id)) cited.push(id); });
+    }
+    if (!cited.length) return `<p><span class="ask-section">Where to look</span></p>`;
+    const rows = cited.map((id) => {
+      const s = ids.get(id);
+      const link = sourceLink(s);
+      const filename = String(s.filename || link.doc?.filename || s.name || s.doc_name || '').split(/[\\/]/).pop();
+      const title = (link.doc && link.label) || s.title || filename || 'Source document';
+      const page = Number(s.page);
+      const where = Number.isInteger(page) && page > 0 ? ` · p. ${page}` : '';
+      return `<p class="ask-where-row"><strong>${esc(title)}</strong><br><small>${esc(filename)}${where}</small> <button type="button" class="ask-cite" data-cite="${esc(id)}">${esc(id)}</button></p>`;
+    });
+    return `<p><span class="ask-section">Where to look</span></p>${rows.join('')}`;
+  }
+
   function renderAnswerText(text, sources) {
     const ids = new Map(sources.map((s) => [s.id, s]));
     const blocks = String(text).split(/\n{2,}/);
     return blocks.map((block) => {
-      const heading = block.match(/^(?:[-*+]\s+)?(?:#{1,3}\s*)?(?:\*\*)?(Direct answer|Answer|Warnings? from (?:the )?source documents?(?: on this topic)?|Watch out|Also worth knowing|Where sources differ|Not covered|Where to look)(?:\*\*)?:?(?:\*\*)?\s*/i);
+      const where = renderWhereToLook(block, ids);
+      if (where !== null) return where;
+      const heading = block.match(/^(?:[-*+]\s+)?(?:#{1,3}\s*)?(?:\*\*)?(Direct answer|Answer|From your documents|General background \(not from your documents; verify against approved data\)|Warnings? from (?:the )?source documents?(?: on this topic)?|Watch out|Also worth knowing|Where sources differ|Not covered|Where to look)(?:\*\*)?:?(?:\*\*)?\s*/i);
       let html = esc(block);
       if (heading) {
         const rawLabel = heading[1];

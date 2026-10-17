@@ -67,3 +67,5 @@
 .ask-turn #ask-thread-controls{margin:14px 0 6px}
 .ask-turn #ask-form{margin:0 0 16px}
 @media (max-width:480px){.ask-sources-toggle{padding:12px;font-size:14px}.ask-turn #ask-form{margin-bottom:12px}}
+.ask-where-row{margin:6px 0}
+.ask-where-row small{color:#5f6b6e;overflow-wrap:anywhere}
