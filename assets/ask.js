@@ -21,11 +21,12 @@
   let turnNumber = 0;
 
   const SUGGESTED = [
-    'Can I strip paint off a high-strength steel landing gear part the same way as an aluminium panel?',
-    'Our stainless screws keep eating the aluminium around them: why, and what do we change?',
-    'Do EASA and the FAA agree on who can sign off a component after repair?',
-    'If we ship a repaired part to a customer in China, what do we need from CAAC and from export control?',
-    'What will an auditor expect our internal audit program and quality manual to cover?',
+    'How long does Sherwin-Williams F93 Type I Lusterless need to dry before we can reassemble a landing-light module?',
+    'Can we shorten the cure time for our F93 Type I Lusterless paint, and what data would engineering need to justify that?',
+    'What could make a landing-light module extend normally but retract slowly after reassembly?',
+    'An ignition exciter passes the bench test but fails after warming up. What should we investigate?',
+    'How should engineering compare two sealants for a landing-light housing?',
+    'How would we design an R&D experiment to find out why coating cure times vary between batches?',
   ];
 
   function setStatus(state, text) {
