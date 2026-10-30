@@ -1,3 +1,8 @@
+Archived project
+
+
+
+
 # HangarIndex
 
 HangarIndex is a local-first proof of concept for searching aerospace maintenance documents and asking a language model questions grounded in matching passages. The public corpus includes the original FAA starter folder plus regulatory, repair-practice, science, parts, supplier, and management references. Source registers record provenance and redistribution status; they are not indexed. HangarIndex helps people locate source documents and cross-references in a company-public library, not approve repairs or replace controlled technical data.
